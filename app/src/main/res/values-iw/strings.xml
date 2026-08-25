@@ -25,7 +25,9 @@
     <string name="error_prefix">שגיאה: %1$s</string>
     <string name="error_no_whisper_model">מודל התמלול לא מוגדר. יש לבחור קובץ מודל בהגדרות.</string>
     <string name="error_no_llama_model">מודל הסיכום לא מוגדר. יש לבחור קובץ GGUF בהגדרות.</string>
-    <string name="error_engines_not_ready">מנועי העיבוד יתווספו בשלב הבנייה הבא.</string>
+    <string name="error_empty_transcript">התמליל ריק — לא זוהה דיבור בקובץ השמע.</string>
+    <string name="error_whisper_load">טעינת מודל התמלול נכשלה. יש לבדוק את הקובץ בהגדרות.</string>
+    <string name="error_llama_load">טעינת מודל הסיכום נכשלה. ייתכן שהמודל גדול מדי לזיכרון המכשיר, או שהקובץ אינו תקין.</string>
     <string name="open_settings">הגדרות</string>
     <string name="open_history">היסטוריה</string>
 

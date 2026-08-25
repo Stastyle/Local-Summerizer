@@ -5,6 +5,8 @@ import android.net.Uri
 import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.domain.PipelineState
+import com.stastyle.localsummarizer.nativebridge.LlamaBridge
+import com.stastyle.localsummarizer.nativebridge.WhisperBridge
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -32,6 +34,9 @@ object PipelineManager {
 
     fun requestCancel() {
         cancelRequested = true
+        // Interrupt native inference too; it may be mid-call for minutes.
+        runCatching { WhisperBridge.cancel() }
+        runCatching { LlamaBridge.cancel() }
     }
 
     /**
@@ -42,9 +47,14 @@ object PipelineManager {
         if (state.value.isRunning) return null
         if (!settings.hasWhisperModel) return context.getString(R.string.error_no_whisper_model)
         if (!settings.hasLlamaModel) return context.getString(R.string.error_no_llama_model)
-        // The native engines and the foreground service are integrated in the
-        // next build phases; until then report an explicit not-ready error.
-        _state.value = PipelineState.Failed(context.getString(R.string.error_engines_not_ready))
-        return null
+        cancelRequested = false
+        _state.value = PipelineState.Decoding
+        return try {
+            ProcessingService.start(context, audioUri, audioName)
+            null
+        } catch (e: Exception) {
+            _state.value = PipelineState.Failed(e.message ?: e.javaClass.simpleName)
+            e.message
+        }
     }
 }

@@ -25,7 +25,9 @@
     <string name="error_prefix">Error: %1$s</string>
     <string name="error_no_whisper_model">Whisper model is not configured. Open Settings to choose a model file.</string>
     <string name="error_no_llama_model">Summarization model is not configured. Open Settings to choose a GGUF file.</string>
-    <string name="error_engines_not_ready">Processing engines are added in the next build phase.</string>
+    <string name="error_empty_transcript">The transcript is empty — no speech was detected in the audio.</string>
+    <string name="error_whisper_load">Failed to load the Whisper model. Check the file in Settings.</string>
+    <string name="error_llama_load">Failed to load the summarization model. It may be too large for this device\'s memory, or the file may be invalid.</string>
     <string name="open_settings">Settings</string>
     <string name="open_history">History</string>
 
