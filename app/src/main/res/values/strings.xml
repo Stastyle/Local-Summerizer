@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Local Summarizer</string>
+
+    <!-- Main screen -->
+    <string name="main_title">Meeting Transcriber</string>
+    <string name="pick_audio_file">Pick audio file</string>
+    <string name="no_file_selected">No file selected</string>
+    <string name="run_pipeline">Transcribe &amp; Summarize</string>
+    <string name="cancel">Cancel</string>
+    <string name="tab_transcript">Transcript</string>
+    <string name="tab_summary">Summary</string>
+    <string name="copy">Copy</string>
+    <string name="share">Share</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="stage_idle">Ready</string>
+    <string name="stage_decoding">Decoding audio…</string>
+    <string name="stage_loading_whisper">Loading transcription model…</string>
+    <string name="stage_transcribing">Transcribing… %1$d%%</string>
+    <string name="stage_loading_llama">Loading summarization model…</string>
+    <string name="stage_summarizing">Generating summary…</string>
+    <string name="stage_summarizing_chunk">Summarizing part %1$d of %2$d…</string>
+    <string name="stage_done">Done</string>
+    <string name="stage_cancelled">Cancelled</string>
+    <string name="error_prefix">Error: %1$s</string>
+    <string name="error_no_whisper_model">Whisper model is not configured. Open Settings to choose a model file.</string>
+    <string name="error_no_llama_model">Summarization model is not configured. Open Settings to choose a GGUF file.</string>
+    <string name="error_engines_not_ready">Processing engines are added in the next build phase.</string>
+    <string name="open_settings">Settings</string>
+    <string name="open_history">History</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="settings_models_section">Models</string>
+    <string name="settings_whisper_model">Whisper model (GGML .bin)</string>
+    <string name="settings_llama_model">Summarization model (GGUF)</string>
+    <string name="settings_choose_file">Choose file</string>
+    <string name="settings_clear">Clear</string>
+    <string name="settings_not_configured">Not configured</string>
+    <string name="settings_recommended_models">Recommended models</string>
+    <string name="settings_whisper_recommendation">Transcription (Hebrew): ivrit-ai whisper-large-v3-turbo (GGML, ~1.6GB) — the best Hebrew accuracy. Official Whisper models also work.</string>
+    <string name="settings_llama_recommendation">Summarization: Qwen2.5-7B-Instruct Q4_K_M (~4.7GB, best quality, needs 12GB RAM) or Qwen2.5-3B-Instruct Q4_K_M (~2GB, much faster). Any chat GGUF works.</string>
+    <string name="settings_prompt_section">Master prompt</string>
+    <string name="settings_prompt_hint">System prompt used for summarization</string>
+    <string name="settings_reset_prompt">Reset to default</string>
+    <string name="settings_advanced_section">Advanced</string>
+    <string name="settings_language">Transcription language</string>
+    <string name="settings_language_hebrew">Hebrew</string>
+    <string name="settings_language_auto">Auto-detect</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_threads">CPU threads (0 = auto)</string>
+    <string name="settings_context_size">LLM context size (tokens)</string>
+    <string name="settings_max_tokens">Max summary length (tokens)</string>
+    <string name="settings_temperature">Temperature</string>
+    <string name="settings_saved">Saved</string>
+    <string name="settings_save">Save</string>
+
+    <!-- History screen -->
+    <string name="history_title">History</string>
+    <string name="history_empty">No processed meetings yet</string>
+    <string name="history_delete">Delete</string>
+    <string name="history_transcript_label">Transcript</string>
+    <string name="history_summary_label">Summary</string>
+
+    <!-- Export -->
+    <string name="export_md">Export .md</string>
+    <string name="export_txt">Export .txt</string>
+    <string name="export_done">File exported</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">Meeting processing</string>
+    <string name="notification_title">Processing meeting</string>
+</resources>

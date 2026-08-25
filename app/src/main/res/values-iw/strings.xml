@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">סיכום ישיבות</string>
+
+    <!-- Main screen -->
+    <string name="main_title">תמלול וסיכום ישיבות</string>
+    <string name="pick_audio_file">בחירת קובץ שמע</string>
+    <string name="no_file_selected">לא נבחר קובץ</string>
+    <string name="run_pipeline">תמלל וסכם</string>
+    <string name="cancel">ביטול</string>
+    <string name="tab_transcript">תמליל</string>
+    <string name="tab_summary">סיכום</string>
+    <string name="copy">העתקה</string>
+    <string name="share">שיתוף</string>
+    <string name="copied_to_clipboard">הועתק ללוח</string>
+    <string name="stage_idle">מוכן</string>
+    <string name="stage_decoding">מפענח שמע…</string>
+    <string name="stage_loading_whisper">טוען מודל תמלול…</string>
+    <string name="stage_transcribing">מתמלל… %1$d%%</string>
+    <string name="stage_loading_llama">טוען מודל סיכום…</string>
+    <string name="stage_summarizing">מחולל סיכום…</string>
+    <string name="stage_summarizing_chunk">מסכם חלק %1$d מתוך %2$d…</string>
+    <string name="stage_done">הסתיים</string>
+    <string name="stage_cancelled">בוטל</string>
+    <string name="error_prefix">שגיאה: %1$s</string>
+    <string name="error_no_whisper_model">מודל התמלול לא מוגדר. יש לבחור קובץ מודל בהגדרות.</string>
+    <string name="error_no_llama_model">מודל הסיכום לא מוגדר. יש לבחור קובץ GGUF בהגדרות.</string>
+    <string name="error_engines_not_ready">מנועי העיבוד יתווספו בשלב הבנייה הבא.</string>
+    <string name="open_settings">הגדרות</string>
+    <string name="open_history">היסטוריה</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">הגדרות</string>
+    <string name="back">חזרה</string>
+    <string name="settings_models_section">מודלים</string>
+    <string name="settings_whisper_model">מודל תמלול Whisper ‏(GGML ‏.bin)</string>
+    <string name="settings_llama_model">מודל סיכום (GGUF)</string>
+    <string name="settings_choose_file">בחירת קובץ</string>
+    <string name="settings_clear">ניקוי</string>
+    <string name="settings_not_configured">לא מוגדר</string>
+    <string name="settings_recommended_models">מודלים מומלצים</string>
+    <string name="settings_whisper_recommendation">תמלול (עברית): ivrit-ai whisper-large-v3-turbo בפורמט GGML ‏(כ־1.6GB) — הדיוק הטוב ביותר בעברית. גם מודלי Whisper רשמיים נתמכים.</string>
+    <string name="settings_llama_recommendation">סיכום: Qwen2.5-7B-Instruct Q4_K_M ‏(כ־4.7GB, האיכות הטובה ביותר, דורש 12GB RAM) או Qwen2.5-3B-Instruct Q4_K_M ‏(כ־2GB, מהיר בהרבה). כל מודל שיחה בפורמט GGUF יעבוד.</string>
+    <string name="settings_prompt_section">פרומפט ראשי</string>
+    <string name="settings_prompt_hint">הנחיית המערכת המשמשת לסיכום</string>
+    <string name="settings_reset_prompt">איפוס לברירת מחדל</string>
+    <string name="settings_advanced_section">מתקדם</string>
+    <string name="settings_language">שפת התמלול</string>
+    <string name="settings_language_hebrew">עברית</string>
+    <string name="settings_language_auto">זיהוי אוטומטי</string>
+    <string name="settings_language_english">אנגלית</string>
+    <string name="settings_threads">ליבות מעבד (0 = אוטומטי)</string>
+    <string name="settings_context_size">גודל קונטקסט למודל השפה (טוקנים)</string>
+    <string name="settings_max_tokens">אורך סיכום מרבי (טוקנים)</string>
+    <string name="settings_temperature">טמפרטורה</string>
+    <string name="settings_saved">נשמר</string>
+    <string name="settings_save">שמירה</string>
+
+    <!-- History screen -->
+    <string name="history_title">היסטוריה</string>
+    <string name="history_empty">אין עדיין ישיבות מעובדות</string>
+    <string name="history_delete">מחיקה</string>
+    <string name="history_transcript_label">תמליל</string>
+    <string name="history_summary_label">סיכום</string>
+
+    <!-- Export -->
+    <string name="export_md">ייצוא ‎.md</string>
+    <string name="export_txt">ייצוא ‎.txt</string>
+    <string name="export_done">הקובץ יוצא בהצלחה</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">עיבוד ישיבה</string>
+    <string name="notification_title">מעבד ישיבה</string>
+</resources>
