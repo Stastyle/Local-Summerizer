@@ -7,6 +7,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import java.io.EOFException
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -22,27 +23,48 @@ object AudioDecoder {
 
     class DecodeException(message: String, cause: Throwable? = null) : IOException(message, cause)
 
-    fun decode(
+    /**
+     * Decodes [uri] into [target] as raw little-endian float32 samples and
+     * returns how many samples were written.
+     */
+    fun decodeToFile(
         context: Context,
         uri: Uri,
+        target: File,
         onProgress: (Int) -> Unit = {},
         isCancelled: () -> Boolean = { false },
-    ): FloatArray {
-        return try {
-            decodeWithMediaCodec(context, uri, onProgress, isCancelled)
-        } catch (e: DecodeException) {
-            // MediaExtractor occasionally rejects WAV variants; fall back to a
-            // manual RIFF parser before giving up.
-            decodeWavFallback(context, uri, isCancelled) ?: throw e
+    ): Long {
+        val samples = PcmFileSink(target).use { sink ->
+            try {
+                decodeWithMediaCodec(context, uri, sink, onProgress, isCancelled)
+            } catch (e: DecodeException) {
+                // MediaExtractor rejects some WAV variants; try a manual RIFF
+                // parse before giving up. The sink may hold a partial decode,
+                // so restart it from scratch.
+                sink.close()
+                target.delete()
+                return PcmFileSink(target).use { retrySink ->
+                    if (!decodeWavFallback(context, uri, retrySink, isCancelled)) throw e
+                    onProgress(100)
+                    retrySink.sampleCount
+                }
+            }
+            sink.sampleCount
         }
+        if (samples == 0L) {
+            target.delete()
+            throw DecodeException("Decoded audio is empty")
+        }
+        return samples
     }
 
     private fun decodeWithMediaCodec(
         context: Context,
         uri: Uri,
+        sink: PcmSink,
         onProgress: (Int) -> Unit,
         isCancelled: () -> Boolean,
-    ): FloatArray {
+    ) {
         val extractor = MediaExtractor()
         try {
             context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { afd ->
@@ -82,7 +104,6 @@ object AudioDecoder {
                 throw DecodeException("No decoder available for $mime", e)
             }
 
-            val out = FloatArrayBuilder()
             try {
                 codec.configure(format, null, null, 0)
                 codec.start()
@@ -140,7 +161,7 @@ object AudioDecoder {
                                 buffer.position(info.offset)
                                 buffer.limit(info.offset + info.size)
                                 val mono = toMonoFloats(buffer, pcmEncoding, channels)
-                                resampler.process(mono, mono.size, out)
+                                resampler.process(mono, mono.size, sink)
 
                                 if (durationUs > 0 && info.presentationTimeUs > 0) {
                                     val progress =
@@ -164,12 +185,7 @@ object AudioDecoder {
                 codec.release()
             }
 
-            val result = out.toFloatArray()
-            if (result.isEmpty()) {
-                throw DecodeException("Decoded audio is empty")
-            }
             onProgress(100)
-            return result
         } catch (e: DecodeException) {
             throw e
         } catch (e: Exception) {
@@ -209,21 +225,28 @@ object AudioDecoder {
     private fun decodeWavFallback(
         context: Context,
         uri: Uri,
+        sink: PcmSink,
         isCancelled: () -> Boolean,
-    ): FloatArray? {
+    ): Boolean {
         return try {
             context.contentResolver.openInputStream(uri)?.use { stream ->
-                decodeWavStream(stream, isCancelled)
-            }
+                decodeWavStream(stream, sink, isCancelled)
+            } ?: false
+        } catch (e: DecodeException) {
+            throw e
         } catch (e: Exception) {
-            null
+            false
         }
     }
 
-    private fun decodeWavStream(stream: InputStream, isCancelled: () -> Boolean): FloatArray? {
+    private fun decodeWavStream(
+        stream: InputStream,
+        sink: PcmSink,
+        isCancelled: () -> Boolean,
+    ): Boolean {
         val header = ByteArray(12)
-        if (!readFully(stream, header, 12)) return null
-        if (String(header, 0, 4) != "RIFF" || String(header, 8, 4) != "WAVE") return null
+        if (!readFully(stream, header, 12)) return false
+        if (String(header, 0, 4) != "RIFF" || String(header, 8, 4) != "WAVE") return false
 
         var audioFormat = 1
         var channels = 1
@@ -233,14 +256,14 @@ object AudioDecoder {
 
         val chunkHeader = ByteArray(8)
         while (true) {
-            if (!readFully(stream, chunkHeader, 8)) return null
+            if (!readFully(stream, chunkHeader, 8)) return false
             val chunkId = String(chunkHeader, 0, 4)
             val chunkSize = ByteBuffer.wrap(chunkHeader, 4, 4)
                 .order(ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xFFFFFFFFL
 
             if (chunkId == "fmt ") {
                 val fmt = ByteArray(chunkSize.toInt().coerceAtMost(64))
-                if (!readFully(stream, fmt, fmt.size)) return null
+                if (!readFully(stream, fmt, fmt.size)) return false
                 skipFully(stream, chunkSize - fmt.size)
                 val bb = ByteBuffer.wrap(fmt).order(ByteOrder.LITTLE_ENDIAN)
                 audioFormat = bb.short.toInt() and 0xFFFF
@@ -256,10 +279,10 @@ object AudioDecoder {
                 }
                 fmtSeen = true
             } else if (chunkId == "data") {
-                if (!fmtSeen || sampleRate <= 0) return null
+                if (!fmtSeen || sampleRate <= 0) return false
                 return readWavData(
                     stream, chunkSize, audioFormat, channels, sampleRate,
-                    bitsPerSample, isCancelled,
+                    bitsPerSample, sink, isCancelled,
                 )
             } else {
                 // chunks are word-aligned
@@ -275,12 +298,12 @@ object AudioDecoder {
         channels: Int,
         sampleRate: Int,
         bitsPerSample: Int,
+        sink: PcmSink,
         isCancelled: () -> Boolean,
-    ): FloatArray? {
+    ): Boolean {
         val bytesPerSample = bitsPerSample / 8
-        if (bytesPerSample !in 1..4) return null
+        if (bytesPerSample !in 1..4) return false
         val frameSize = bytesPerSample * channels
-        val out = FloatArrayBuilder()
         val resampler = LinearResampler(sampleRate, TARGET_SAMPLE_RATE)
         val chunk = ByteArray(64 * 1024 - (64 * 1024 % frameSize))
         var remaining = if (dataSize <= 0) Long.MAX_VALUE else dataSize
@@ -302,10 +325,9 @@ object AudioDecoder {
                 }
                 mono[frame] = sum / channels
             }
-            resampler.process(mono, mono.size, out)
+            resampler.process(mono, mono.size, sink)
         }
-        val result = out.toFloatArray()
-        return if (result.isEmpty()) null else result
+        return true
     }
 
     private fun readWavSample(bb: ByteBuffer, audioFormat: Int, bitsPerSample: Int): Float {
@@ -348,22 +370,6 @@ object AudioDecoder {
     }
 }
 
-/** Growable float buffer that avoids reallocating on every append. */
-class FloatArrayBuilder(initialCapacity: Int = 1 shl 20) {
-    private var data = FloatArray(initialCapacity)
-    var size = 0
-        private set
-
-    fun add(value: Float) {
-        if (size == data.size) {
-            data = data.copyOf(data.size * 2)
-        }
-        data[size++] = value
-    }
-
-    fun toFloatArray(): FloatArray = data.copyOf(size)
-}
-
 /**
  * Streaming linear-interpolation resampler that keeps state across chunks, so
  * audio can be converted while it is being decoded without seams.
@@ -374,7 +380,7 @@ class LinearResampler(srcRate: Int, dstRate: Int) {
     private var prev = 0f
     private var primed = false
 
-    fun process(input: FloatArray, count: Int, out: FloatArrayBuilder) {
+    fun process(input: FloatArray, count: Int, out: PcmSink) {
         for (i in 0 until count) {
             val current = input[i]
             if (!primed) {

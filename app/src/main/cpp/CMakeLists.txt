@@ -8,6 +8,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+# Inference is unusably slow without optimizations, so a debug APK must still
+# get optimized native code no matter which CMAKE_BUILD_TYPE the Android
+# Gradle plugin picks for the variant.
+set(CMAKE_C_FLAGS_DEBUG "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DNDEBUG" CACHE STRING "" FORCE)
+
 # ggml is built once (from llama.cpp) and shared with whisper.cpp, which skips
 # its own copy when the target already exists.
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)

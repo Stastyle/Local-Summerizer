@@ -32,14 +32,15 @@ object WhisperBridge {
         return nativeInit(modelPath)
     }
 
-    fun transcribe(
+    /** [pcmPath] holds raw little-endian float32 mono samples at 16 kHz. */
+    fun transcribeFile(
         handle: Long,
-        pcm: FloatArray,
+        pcmPath: String,
         language: String,
         threads: Int,
         translate: Boolean = false,
         listener: Listener? = null,
-    ): String = nativeTranscribe(handle, pcm, language, threads, translate, listener)
+    ): String = nativeTranscribeFile(handle, pcmPath, language, threads, translate, listener)
 
     fun cancel() {
         NativeLib.ensureLoaded()
@@ -51,9 +52,9 @@ object WhisperBridge {
     }
 
     private external fun nativeInit(modelPath: String): Long
-    private external fun nativeTranscribe(
+    private external fun nativeTranscribeFile(
         handle: Long,
-        pcm: FloatArray,
+        pcmPath: String,
         language: String,
         threads: Int,
         translate: Boolean,

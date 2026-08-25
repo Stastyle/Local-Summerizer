@@ -1,7 +1,9 @@
 #include <jni.h>
 
 #include <atomic>
+#include <cstdio>
 #include <cstring>
+#include <new>
 #include <string>
 #include <vector>
 
@@ -80,8 +82,8 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeInit(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribe(
-        JNIEnv * env, jobject /*thiz*/, jlong handle, jfloatArray pcm,
+Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFile(
+        JNIEnv * env, jobject /*thiz*/, jlong handle, jstring pcm_path,
         jstring language, jint n_threads, jboolean translate, jobject listener) {
     auto * ctx = (whisper_context *) (intptr_t) handle;
     if (ctx == nullptr) {
@@ -89,9 +91,39 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribe(
         return nullptr;
     }
 
-    const jsize n_samples = env->GetArrayLength(pcm);
-    std::vector<float> samples((size_t) n_samples);
-    env->GetFloatArrayRegion(pcm, 0, n_samples, samples.data());
+    // Read raw little-endian float32 PCM. A long meeting is hundreds of MB, so
+    // it is kept on the native heap rather than in a Java float[].
+    const std::string path = jstring_to_utf8(env, pcm_path);
+    std::vector<float> samples;
+    {
+        FILE * f = fopen(path.c_str(), "rb");
+        if (f == nullptr) {
+            throw_runtime_exception(env, "cannot open decoded audio: " + path);
+            return nullptr;
+        }
+        fseek(f, 0, SEEK_END);
+        const long bytes = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        if (bytes <= 0) {
+            fclose(f);
+            throw_runtime_exception(env, "decoded audio is empty");
+            return nullptr;
+        }
+        try {
+            samples.resize((size_t) bytes / sizeof(float));
+        } catch (const std::bad_alloc &) {
+            fclose(f);
+            throw_runtime_exception(env, "not enough memory for the decoded audio");
+            return nullptr;
+        }
+        const size_t read = fread(samples.data(), sizeof(float), samples.size(), f);
+        fclose(f);
+        samples.resize(read);
+        if (samples.empty()) {
+            throw_runtime_exception(env, "decoded audio is empty");
+            return nullptr;
+        }
+    }
 
     g_whisper_cancel = false;
 

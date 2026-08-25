@@ -10,6 +10,7 @@ import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.nativebridge.LlamaBridge
 import com.stastyle.localsummarizer.nativebridge.WhisperBridge
+import java.io.File
 
 /**
  * Runs the full offline pipeline sequentially, keeping at most one model in
@@ -33,19 +34,22 @@ class MeetingPipeline(
     suspend fun run(): PipelineState {
         val startedAt = System.currentTimeMillis()
         var transcript = ""
+        val pcmFile = File(context.cacheDir, "decoded-${startedAt}.pcm")
         try {
-            // 1. decode audio to 16kHz mono PCM
+            // 1. decode audio to a 16kHz mono PCM scratch file (a long meeting
+            //    is hundreds of MB — far past the Java heap limit)
             manager.update(PipelineState.Decoding)
-            val pcm = AudioDecoder.decode(
+            AudioDecoder.decodeToFile(
                 context = context,
                 uri = audioUri,
+                target = pcmFile,
                 onProgress = { /* stage is indeterminate in the UI */ },
                 isCancelled = ::cancelled,
             )
             if (cancelled()) return finish(PipelineState.Cancelled)
 
             // 2. whisper: load -> transcribe -> free
-            transcript = transcribe(pcm)
+            transcript = transcribe(pcmFile)
             if (cancelled()) return finish(PipelineState.Cancelled)
             if (transcript.isBlank()) {
                 return finish(fail(R.string.error_empty_transcript))
@@ -73,6 +77,8 @@ class MeetingPipeline(
             if (cancelled()) return finish(PipelineState.Cancelled)
             val message = e.message ?: e.javaClass.simpleName
             return finish(PipelineState.Failed(message))
+        } finally {
+            pcmFile.delete()
         }
     }
 
@@ -84,7 +90,7 @@ class MeetingPipeline(
     private fun fail(messageRes: Int): PipelineState =
         PipelineState.Failed(context.getString(messageRes))
 
-    private fun transcribe(pcm: FloatArray): String {
+    private fun transcribe(pcmFile: File): String {
         manager.update(PipelineState.LoadingWhisper)
         val resolved = ModelFileResolver.resolve(
             context, settings.whisperModelUri, settings.whisperModelName, ::cancelled,
@@ -118,9 +124,9 @@ class MeetingPipeline(
             }
 
             manager.update(PipelineState.Transcribing(0, ""))
-            return WhisperBridge.transcribe(
+            return WhisperBridge.transcribeFile(
                 handle = handle,
-                pcm = pcm,
+                pcmPath = pcmFile.absolutePath,
                 language = settings.language,
                 threads = effectiveThreads(),
                 translate = false,
