@@ -1,40 +1,105 @@
-# Local Summarizer — סיכום ישיבות אופליין
+# Local Summarizer — תמלול וסיכום ישיבות אופליין
 
-Fully offline Android app that transcribes meeting recordings with **whisper.cpp**
-and summarizes them in Hebrew with **llama.cpp** (Qwen 2.5 Instruct GGUF).
-No network access is needed at runtime — everything runs on-device.
+Offline Android app that transcribes meeting recordings with **whisper.cpp** and
+summarizes them in Hebrew with **llama.cpp** (Qwen 2.5 Instruct GGUF).
+Nothing leaves the device — the app requests no network permission at all.
 
-אפליקציית אנדרואיד שמתמללת הקלטות ישיבות ומסכמת אותן בעברית — הכול מקומית על המכשיר, ללא אינטרנט.
+אפליקציית אנדרואיד שמתמללת הקלטות ישיבות ומסכמת אותן בעברית — הכול מקומית על המכשיר, ללא אינטרנט וללא שליחת מידע לשום מקום.
 
-## Status
+---
 
-🚧 Under active development. Build phases:
+## הורדה והתקנה (Download)
 
-- [x] Phase 1 — Project skeleton, Compose UI shell (Main / Settings / History), CI APK builds
-- [ ] Phase 2 — Audio decoding (MediaCodec → 16kHz mono PCM) + whisper.cpp JNI
-- [ ] Phase 3 — llama.cpp JNI, Qwen ChatML pipeline, foreground service
-- [ ] Phase 4 — Export/share, history, polish
+1. פותחים בטלפון את [דף ה-Release](https://github.com/Stastyle/Local-Summerizer/releases/tag/apk-latest)
+   ומורידים את **`app-release.apk`**.
+2. באנדרואיד מאשרים התקנה ממקור לא מוכר (הטלפון יציע את זה בעצמו).
+3. מתקינים ופותחים.
 
-## Download APK
+ה-APK נבנה מחדש בכל דחיפה לענף ומוחלף באותו קישור, כך שהקישור תמיד מצביע על הגרסה האחרונה.
+תומך ב-arm64 בלבד (כל טלפון מודרני), אנדרואיד 8.0 ומעלה.
 
-Every push builds APKs in GitHub Actions and publishes them to the rolling
-[`apk-latest` release](../../releases/tag/apk-latest). Install `app-release.apk`.
+## הורדת מודלים (Models)
 
-## Recommended models
+האפליקציה לא כוללת מודלים — צריך להוריד אותם פעם אחת לטלפון (למשל לתיקיית ההורדות) ולבחור אותם במסך ההגדרות.
 
-| Purpose | Model | Size | Notes |
+| ייעוד | מודל מומלץ | גודל | הערות |
 |---|---|---|---|
-| Hebrew transcription | [ivrit-ai whisper-large-v3-turbo (GGML)](https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml) | ~1.6GB | Best Hebrew accuracy |
-| Summarization (best) | [Qwen2.5-7B-Instruct GGUF Q4_K_M](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF) | ~4.7GB | Needs a 12GB-RAM phone |
-| Summarization (fast) | [Qwen2.5-3B-Instruct GGUF Q4_K_M](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) | ~2GB | Good quality, much faster |
+| תמלול בעברית | [ivrit-ai/whisper-large-v3-turbo-ggml](https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml) | ~1.6GB | הדיוק הטוב ביותר בעברית — מומלץ |
+| תמלול (חלופה) | [ggml-large-v3-turbo](https://huggingface.co/ggerganov/whisper.cpp/tree/main) | ~1.6GB | Whisper הרשמי, עברית סבירה |
+| סיכום — איכות מרבית | [Qwen2.5-7B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF) ‏(Q4_K_M) | ~4.7GB | האיכות הטובה ביותר; דורש 12GB RAM. מתאים ל-S26 Ultra |
+| סיכום — מהיר | [Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) ‏(Q4_K_M) | ~2GB | מהיר בהרבה, עברית עדיין טובה |
 
-Download the model files to your phone, then pick them in the app's Settings screen.
+מודל התמלול חייב להיות בפורמט **GGML ‏(`.bin`)**, ומודל הסיכום בפורמט **GGUF**.
+כל קובץ GGUF של מודל שיחה יעבוד — לא רק Qwen.
 
-## Tech
+**המלצה למכשיר עם 12GB RAM:** התחילו עם Qwen2.5-**7B** Q4_K_M לאיכות המרבית.
+אם הסיכום איטי מדי לטעמכם, החליפו ל-3B — ההבדל במהירות גדול, ההבדל באיכות קטן יחסית.
+
+## שימוש (Usage)
+
+1. **הגדרות** → בוחרים את קובץ מודל התמלול ואת קובץ מודל הסיכום.
+2. באותו מסך אפשר לערוך את **הפרומפט הראשי** — הנחיית המערכת שקובעת איך ייראה הסיכום
+   (ברירת המחדל מייצרת תקציר מנהלים, נושאים, החלטות, משימות ושאלות פתוחות בעברית).
+3. במסך הראשי בוחרים קובץ שמע ‏(M4A, MP3, WAV, AAC, OGG) ולוחצים **תמלל וסכם**.
+4. העיבוד רץ ברקע עם התראה מתמדת; אפשר לצאת מהאפליקציה ולחזור.
+5. בסיום: העתקה ללוח, שיתוף, או ייצוא ל-`.md` / `.txt`. כל ישיבה נשמרת ב**היסטוריה**.
+
+### כמה זמן זה לוקח
+
+העיבוד מקומי לגמרי, ולכן איטי יותר משירותי ענן. לסדר גודל, בפגישה של שעה על מכשיר דגל:
+פענוח שמע — שניות; תמלול — בערך 10–25 דקות; סיכום — עוד כמה דקות (יותר עם מודל 7B).
+כדאי להריץ כשהטלפון בטעינה.
+
+## איך זה בנוי (Architecture)
+
+```
+בחירת קובץ (SAF)
+      ↓
+פענוח שמע  MediaCodec → PCM 16kHz מונו float, נכתב לקובץ זמני
+      ↓
+טעינת Whisper → תמלול (התקדמות חיה) → שחרור Whisper מהזיכרון
+      ↓
+טעינת Llama → סיכום ChatML → שחרור Llama מהזיכרון
+      ↓
+תוצאה + היסטוריה + ייצוא
+```
+
+הרצה **סדרתית** בכוונה: שני המודלים לעולם לא נמצאים בזיכרון בו-זמנית, אחרת מכשיר עם 12GB
+היה נחנק. כל הצינור רץ ב-`ForegroundService` עם `WakeLock`, כדי שהמערכת לא תהרוג אותו
+באמצע עיבוד ארוך.
+
+**פגישות ארוכות:** תמליל של שעה גדול מחלון הקונטקסט של המודל, ולכן הסיכום היררכי —
+התמליל מפוצל לקטעים לפי תקציב טוקנים אמיתי (נמדד עם הטוקנייזר של המודל עצמו),
+כל קטע מסוכם בנפרד, ואז נוצר סיכום-על מאוחד.
+
+**זיכרון:** שעת שמע היא כ-230MB של PCM — הרבה מעבר למגבלת ה-Java heap של אנדרואיד.
+לכן השמע המפוענח נכתב לקובץ זמני ונקרא ישירות ב-C++, ולא מוחזק במערך Java.
+
+**מודלים:** נטענים ישירות מהמיקום שבחרתם דרך `/proc/self/fd` ‏(mmap, בלי העתקה),
+עם נפילה לאחור להעתקה חד-פעמית אם ספק הקבצים לא תומך.
+
+### מחסנית טכנולוגית
 
 Kotlin · Jetpack Compose · Material 3 · MVVM · Coroutines/Flow · DataStore ·
-C++ NDK · whisper.cpp · llama.cpp (ARM NEON `-O3 -march=armv8.4-a+dotprod`) ·
-arm64-v8a only.
+C++ NDK 28 · whisper.cpp v1.9.3 · llama.cpp b10630 · ggml משותף לשני המנועים ·
+ARM NEON + dotprod ‏(`-O3 -march=armv8.4-a+dotprod+fp16`) · arm64-v8a.
 
-The release APK is signed with a committed throwaway keystore intended for
-personal sideloading only.
+ההאצה היא על ה-CPU: ה-backends של Vulkan/OpenCL ב-llama.cpp עדיין לא יציבים על אנדרואיד
+(תלות בדרייברים, קריסות על חלק מה-GPU-ים), והבנייה מוכנה להוספתם בהמשך.
+
+## בנייה מקומית (Building)
+
+```bash
+git clone --recurse-submodules https://github.com/Stastyle/Local-Summerizer
+cd Local-Summerizer
+./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
+```
+
+דרישות: JDK 21, Android SDK 35, NDK 28, CMake 3.22+.
+
+גרסת ה-release חתומה במפתח בדיקה שנמצא ב-repo (`app/release.keystore`) — הוא נועד
+לשימוש אישי בלבד ולא לפרסום בחנות.
+
+## פרטיות
+
+אין הרשאת `INTERNET` במניפסט. השמע, התמליל והסיכום לא עוזבים את המכשיר.

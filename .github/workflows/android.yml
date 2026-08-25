@@ -44,7 +44,24 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # The NDK build of llama.cpp + whisper.cpp dominates the run; ccache
+      # turns a rebuild after a Kotlin-only change into seconds.
+      - name: Install ccache
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ccache
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', '.gitmodules') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', '.gitmodules') }}-
+            ccache-${{ runner.os }}-
+
       - name: Build APKs
+        env:
+          CCACHE_DIR: ~/.ccache
+          CCACHE_MAXSIZE: 2G
         run: ./gradlew assembleDebug assembleRelease --stacktrace
 
       - name: Upload APK artifacts

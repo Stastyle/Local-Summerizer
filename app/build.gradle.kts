@@ -25,6 +25,12 @@ android {
         externalNativeBuild {
             cmake {
                 arguments += listOf("-DANDROID_STL=c++_static")
+                if (System.getenv("CCACHE_DIR") != null || System.getenv("CI") != null) {
+                    arguments += listOf(
+                        "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+                        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+                    )
+                }
             }
         }
     }
