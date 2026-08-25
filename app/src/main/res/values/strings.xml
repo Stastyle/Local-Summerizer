@@ -73,4 +73,5 @@
     <!-- Notification -->
     <string name="notification_channel_name">Meeting processing</string>
     <string name="notification_title">Processing meeting</string>
+    <string name="notification_done">Summary is ready — tap to open</string>
 </resources>

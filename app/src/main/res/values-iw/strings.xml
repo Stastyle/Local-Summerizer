@@ -73,4 +73,5 @@
     <!-- Notification -->
     <string name="notification_channel_name">עיבוד ישיבה</string>
     <string name="notification_title">מעבד ישיבה</string>
+    <string name="notification_done">הסיכום מוכן — יש להקיש לפתיחה</string>
 </resources>
