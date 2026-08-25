@@ -6,7 +6,9 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.stastyle.localsummarizer.LocalSummarizerApp
+import com.stastyle.localsummarizer.data.history.MeetingRecord
 import com.stastyle.localsummarizer.data.settings.AppSettings
+import com.stastyle.localsummarizer.export.Exporter
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.pipeline.PipelineManager
 import kotlinx.coroutines.Dispatchers
@@ -69,6 +71,41 @@ class MainViewModel(private val app: LocalSummarizerApp) : AndroidViewModel(app)
 
     fun notify(message: String) {
         _messages.tryEmit(message)
+    }
+
+    /** Builds the export payload for the current results, or null if none. */
+    fun currentRecord(): MeetingRecord? {
+        val state = pipelineState.value
+        val (transcript, summary) = when (state) {
+            is PipelineState.Done -> state.transcript to state.summary
+            else -> return null
+        }
+        return MeetingRecord(
+            createdAtEpochMs = System.currentTimeMillis(),
+            audioFileName = _selectedAudio.value?.displayName ?: "meeting",
+            transcript = transcript,
+            summary = summary,
+        )
+    }
+
+    fun exportTo(uri: Uri, asMarkdown: Boolean, successMessage: String) {
+        val record = currentRecord() ?: return
+        viewModelScope.launch {
+            val content = if (asMarkdown) {
+                Exporter.buildMarkdown(record)
+            } else {
+                Exporter.buildPlainText(record)
+            }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { Exporter.writeTo(app, uri, content) }
+            }
+            _messages.emit(
+                result.fold(
+                    onSuccess = { successMessage },
+                    onFailure = { it.message ?: it.javaClass.simpleName },
+                ),
+            )
+        }
     }
 
     private fun resolveDisplayName(uri: Uri): String {

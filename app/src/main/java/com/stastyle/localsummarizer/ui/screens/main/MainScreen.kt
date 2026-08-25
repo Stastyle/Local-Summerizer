@@ -4,6 +4,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import android.content.Intent
 import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.domain.PipelineState
+import com.stastyle.localsummarizer.export.Exporter
 import com.stastyle.localsummarizer.ui.AppViewModelProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,6 +84,12 @@ fun MainScreen(
     val audioPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let(viewModel::onAudioPicked) }
+
+    val exportedMessage = stringResource(R.string.export_done)
+    var exportAsMarkdown by remember { mutableStateOf(true) }
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri -> uri?.let { viewModel.exportTo(it, exportAsMarkdown, exportedMessage) } }
 
     Scaffold(
         topBar = {
@@ -111,6 +121,30 @@ fun MainScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (!settings.hasWhisperModel || !settings.hasLlamaModel) {
+                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            stringResource(
+                                if (!settings.hasWhisperModel) {
+                                    R.string.error_no_whisper_model
+                                } else {
+                                    R.string.error_no_llama_model
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        TextButton(onClick = onOpenSettings) {
+                            Text(stringResource(R.string.open_settings))
+                        }
+                    }
+                }
+            }
+
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -160,6 +194,13 @@ fun MainScreen(
                         putExtra(Intent.EXTRA_TEXT, text)
                     }
                     context.startActivity(Intent.createChooser(intent, null))
+                },
+                onExport = { markdown ->
+                    val record = viewModel.currentRecord() ?: return@ResultsSection
+                    exportAsMarkdown = markdown
+                    exportPicker.launch(
+                        Exporter.suggestFileName(record, if (markdown) "md" else "txt"),
+                    )
                 },
             )
         }
@@ -227,11 +268,13 @@ private fun PipelineProgressSection(state: PipelineState) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ResultsSection(
     pipelineState: PipelineState,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onExport: (Boolean) -> Unit,
 ) {
     val transcript: String
     val summary: String
@@ -279,7 +322,7 @@ private fun ResultsSection(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { onCopy(text) }, enabled = text.isNotBlank()) {
                         Text(stringResource(R.string.copy))
                     }
@@ -287,6 +330,13 @@ private fun ResultsSection(
                         Icon(Icons.Default.Share, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.share))
+                    }
+                    val isDone = pipelineState is PipelineState.Done
+                    TextButton(onClick = { onExport(true) }, enabled = isDone) {
+                        Text(stringResource(R.string.export_md))
+                    }
+                    TextButton(onClick = { onExport(false) }, enabled = isDone) {
+                        Text(stringResource(R.string.export_txt))
                     }
                 }
                 SelectionContainer {
