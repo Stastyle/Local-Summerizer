@@ -163,7 +163,14 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
     whisper_full_params wparams = whisper_full_default_params(
             beam ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY);
     if (beam) {
-        wparams.beam_search.beam_size = beam_size;
+        // WHISPER_MAX_DECODERS is 8 and the count is rejected above it.
+        wparams.beam_search.beam_size = std::min(beam_size, 8);
+        // Not redundant: whisper_full_default_params fills only the arm of the
+        // union matching the strategy, so best_of stays at -1 here. Every
+        // temperature-fallback pass under beam search reads greedy.best_of and
+        // clamps it to 1 — so without this line beam search silently collapses
+        // to a single sampled decoder on exactly the windows it was chosen for.
+        wparams.greedy.best_of = wparams.beam_search.beam_size;
     }
     wparams.print_realtime   = false;
     wparams.print_progress   = false;
@@ -172,10 +179,19 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
     wparams.translate        = translate == JNI_TRUE;
     wparams.language         = lang.c_str(); // "auto" enables auto-detection
     wparams.n_threads        = n_threads;
-    // Conditioning each 30s window on the previous text keeps names and jargon
-    // consistent across a meeting. It is also what makes whisper loop when it
-    // goes wrong, which is why it is a setting rather than a constant.
-    wparams.no_context       = use_context != JNI_TRUE;
+    // n_max_text_ctx, not no_context, is what actually gates cross-window
+    // conditioning here: no_context is read once before the window loop, and
+    // the rolling prompt is rebuilt after every window regardless, so with one
+    // whisper_full call per file it does nothing. 0 disables conditioning;
+    // above 0 it bounds how much prior text is carried. 128 leaves room for
+    // both the glossary and a useful amount of context, and a bounded window
+    // stops one bad decode from seeding a runaway repetition in the next.
+    wparams.n_max_text_ctx   = use_context == JNI_TRUE ? 128 : 0;
+
+    // Whisper's repetition-loop detector, over the entropy of the last 32
+    // tokens. Hebrew tokenizes into more distinct pieces than English, so a
+    // repeated Hebrew phrase scores higher and slips under the 2.4 default.
+    wparams.entropy_thold    = 2.6f;
 
     if (!prompt.empty()) {
         // A glossary of the terms this recording actually uses. carry_ means

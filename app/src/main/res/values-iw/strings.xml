@@ -120,7 +120,7 @@
     <string name="settings_beam_search">חיפוש אלומה (Beam search)</string>
     <string name="settings_beam_search_hint">שוקל כמה אפשרויות לכל קטע במקום להתחייב לראשונה. מדויק יותר בבירור, ואיטי בערך פי שניים עד שלושה.</string>
     <string name="settings_carry_context">העברת הקשר בין קטעים</string>
-    <string name="settings_carry_context_hint">שומר על עקביות בשמות ובמונחים לאורך הישיבה. כבו אם התמליל מתחיל לחזור על אותו משפט שוב ושוב.</string>
+    <string name="settings_carry_context_hint">מגביל את הטקסט הקודם שנשמר להקשר ל-128 טוקנים במקום לכבות אותו. שומר על עקביות בשמות ובמונחים. כבו אם התמליל מתחיל לחזור על אותו משפט שוב ושוב.</string>
     <!-- Diagnostics -->
     <string name="diagnostics_section">אבחון</string>
     <string name="diagnostics_hint">דוח על המנוע ועל המכשיר הזה. שימושי כשמשהו נכשל — אפשר להעתיק ולשלוח יחד עם תיאור התקלה. הדוח לא כולל שמע, תמליל או סיכום.</string>
