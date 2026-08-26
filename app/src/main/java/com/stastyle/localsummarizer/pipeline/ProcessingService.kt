@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.stastyle.localsummarizer.MainActivity
@@ -86,7 +87,21 @@ class ProcessingService : Service() {
             return START_NOT_STICKY
         }
 
-        startForegroundWithNotification(getString(R.string.stage_decoding))
+        // startForeground is the likeliest thing here to throw, and an
+        // exception in onStartCommand takes the process down: Android 14+
+        // rejects a foreground service for a missing type permission, a
+        // background start, or a type the manifest does not declare, and
+        // Android 15's mediaProcessing is the most restricted type of the
+        // ones this service can use. A rejection has to become a message.
+        val foregroundFailure = startForegroundOrReason(getString(R.string.stage_decoding))
+        if (foregroundFailure != null) {
+            RunLog.finished(applicationContext, "foreground service refused: $foregroundFailure")
+            PipelineManager.update(
+                PipelineState.Failed(getString(R.string.error_foreground_denied, foregroundFailure)),
+            )
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         acquireWakeLock()
         runFinished = false
 
@@ -190,15 +205,37 @@ class ProcessingService : Service() {
             .build()
     }
 
-    private fun startForegroundWithNotification(text: String) {
-        val type = when {
+    /**
+     * Returns null once the service is in the foreground, or a description of
+     * why every declared type was refused.
+     *
+     * Both types are tried because they are restricted independently and the
+     * manifest declares both: mediaProcessing describes this workload best,
+     * but it is also the newest and most tightly policed, and being refused it
+     * is no reason to give up a run the user asked for.
+     */
+    private fun startForegroundOrReason(text: String): String? {
+        val types = buildList {
             // Android 15 added a type dedicated to on-device media processing,
             // which is exactly this workload.
-            Build.VERSION.SDK_INT >= 35 -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
-            Build.VERSION.SDK_INT >= 34 -> ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            else -> 0
+            if (Build.VERSION.SDK_INT >= 35) {
+                add(ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
+            }
+            if (Build.VERSION.SDK_INT >= 34) {
+                add(ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            }
+            add(0)
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(text), type)
+        val notification = buildNotification(text)
+        var lastFailure: String? = null
+        for (type in types) {
+            val failure = runCatching {
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            }.exceptionOrNull() ?: return null
+            lastFailure = "${failure.javaClass.simpleName}: ${failure.message} (type $type)"
+            Log.w(TAG, "startForeground rejected for type $type", failure)
+        }
+        return lastFailure
     }
 
     /**
@@ -260,9 +297,13 @@ class ProcessingService : Service() {
     }
 
     private fun acquireWakeLock() {
-        val power = getSystemService(PowerManager::class.java) ?: return
-        wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LocalSummarizer:pipeline")
-            .apply { acquire(6 * 60 * 60 * 1000L) }
+        // Best effort: the run is worth attempting without one, and is not
+        // worth crashing over.
+        runCatching {
+            val power = getSystemService(PowerManager::class.java) ?: return
+            wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LocalSummarizer:pipeline")
+                .apply { acquire(6 * 60 * 60 * 1000L) }
+        }.onFailure { Log.w(TAG, "could not acquire a wake lock", it) }
     }
 
     private fun releaseWakeLock() {
@@ -271,6 +312,7 @@ class ProcessingService : Service() {
     }
 
     companion object {
+        private const val TAG = "ProcessingService"
         const val ACTION_START = "com.stastyle.localsummarizer.action.START"
         const val ACTION_CANCEL = "com.stastyle.localsummarizer.action.CANCEL"
         private const val EXTRA_AUDIO_URI = "audio_uri"

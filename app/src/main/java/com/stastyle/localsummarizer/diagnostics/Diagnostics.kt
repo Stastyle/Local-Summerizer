@@ -24,19 +24,21 @@ object RunLog {
     private const val BREADCRUMB = "run-stage.txt"
     private const val OUTCOME = "run-outcome.txt"
 
-    @Volatile
-    private var startupFinding: String? = null
-
-    /** Call once per process, before any run can start. */
+    /**
+     * Call once per process, before any run can start. A leftover breadcrumb
+     * belongs to a process that died, so it is promoted to the outcome record
+     * — on disk, not in memory: the app crashed six times in a row once, and
+     * an in-memory finding was discarded by the very next restart.
+     */
     fun captureFromPreviousProcess(context: Context) {
         val breadcrumb = breadcrumbFile(context)
-        startupFinding = runCatching {
-            if (!breadcrumb.exists()) return@runCatching null
+        runCatching {
+            if (!breadcrumb.exists()) return@runCatching
             val parts = breadcrumb.readLines()
             val stage = parts.getOrNull(0).orEmpty()
-            val at = parts.getOrNull(1)?.toLongOrNull()
-            "process died during \"$stage\"${at?.let { " at ${timestamp(it)}" }.orEmpty()}"
-        }.getOrNull()
+            val at = parts.getOrNull(1)?.toLongOrNull() ?: System.currentTimeMillis()
+            outcomeFile(context).writeText("process died during \"$stage\"\n$at")
+        }
         runCatching { breadcrumb.delete() }
     }
 
@@ -55,7 +57,6 @@ object RunLog {
 
     /** What the previous run ended with, whether it crashed or reported. */
     fun lastOutcome(context: Context): String {
-        startupFinding?.let { return it }
         val recorded = runCatching {
             val parts = outcomeFile(context).readLines()
             val at = parts.getOrNull(1)?.toLongOrNull()
@@ -118,6 +119,15 @@ object Diagnostics {
         // native crash trace reachable without adb.
         appendLine("process exits:")
         appendLine(ExitReasons.summary(context))
+        appendLine()
+
+        val javaCrashes = runCatching { CrashLog.recent(context) }.getOrDefault("")
+        if (javaCrashes.isBlank()) {
+            appendLine("java crashes: none recorded")
+        } else {
+            appendLine("java crashes (newest first):")
+            appendLine(javaCrashes)
+        }
         appendLine()
 
         val engineLog = runCatching { NativeLib.engineLog() }.getOrDefault("")

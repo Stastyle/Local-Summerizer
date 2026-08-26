@@ -7,6 +7,7 @@ import com.stastyle.localsummarizer.data.models.ModelDownloader
 import com.stastyle.localsummarizer.data.models.ModelStore
 import com.stastyle.localsummarizer.data.settings.SettingsRepository
 import com.stastyle.localsummarizer.data.update.AppUpdater
+import com.stastyle.localsummarizer.diagnostics.CrashLog
 import com.stastyle.localsummarizer.diagnostics.RunLog
 
 class LocalSummarizerApp : Application() {
@@ -15,6 +16,8 @@ class LocalSummarizerApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // First, so it is already in place if anything below throws.
+        CrashLog.install(this)
         // Before anything can start a run: a breadcrumb left over from the
         // last process means that process died mid-run, and a native abort
         // leaves no other evidence a sideloaded app can read.
