@@ -126,19 +126,28 @@ jobs:
         run: |
           set -euo pipefail
           SOURCE_SIZE=$(stat -c%s /tmp/source.bin)
+          gh release view models >/dev/null 2>&1 \
+            || gh release create models --prerelease \
+                 --title "Quantized Hebrew models" --notes "Quantized ivrit.ai models."
+          gh release upload models --clobber /tmp/out/*.bin
+
+          # Rebuild the notes from what the release actually holds. Writing
+          # only this run's output would erase the entries a previous run for
+          # the other model added.
           {
             echo "Quantized builds of the ivrit.ai Hebrew Whisper models, for whisper.cpp."
+            echo "Built by .github/workflows/quantize-models.yml from the f16 originals."
             echo
-            echo "Source: \`${{ steps.source.outputs.url }}\` ($((SOURCE_SIZE / 1024 / 1024)) MB, f16)"
-            echo
+            echo "This run: \`${{ steps.source.outputs.url }}\` ($((SOURCE_SIZE / 1024 / 1024)) MB f16)"
             cat /tmp/summary.md
+            echo
+            echo "### All assets"
+            echo
+            gh release view models --json assets \
+              --jq '.assets[] | "- `\(.name)` — \(.size / 1048576 | floor) MB"'
             echo
             echo "q8_0 is near-lossless and roughly halves the memory traffic;"
             echo "q5_0 is about a third of the original at some cost in accuracy."
           } > /tmp/notes.md
-          gh release view models >/dev/null 2>&1 \
-            || gh release create models --prerelease \
-                 --title "Quantized Hebrew models" --notes-file /tmp/notes.md
           gh release edit models --notes-file /tmp/notes.md
-          gh release upload models --clobber /tmp/out/*.bin
           cat /tmp/notes.md >> "$GITHUB_STEP_SUMMARY"

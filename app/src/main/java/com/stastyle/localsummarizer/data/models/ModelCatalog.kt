@@ -21,27 +21,55 @@ private const val MB = 1024L * 1024L
 
 object ModelCatalog {
 
+    private const val QUANTIZED =
+        "https://github.com/Stastyle/Local-Summerizer/releases/download/models"
+
+    /**
+     * Ordered by what to try first on a phone. The quantized entries are built
+     * by .github/workflows/quantize-models.yml from the ivrit.ai f16 originals
+     * and hosted here, because no prebuilt quantization of them exists.
+     *
+     * Timings are measured on one 77-second Hebrew briefing, four x86 cores,
+     * beam 5 — useful for the ratios between models, not as phone figures.
+     */
     val whisper: List<CatalogModel> = listOf(
+        CatalogModel(
+            id = "ivrit-turbo-q5",
+            kind = ModelKind.WHISPER,
+            displayName = "ivrit.ai turbo — מכווץ (מומלץ)",
+            fileName = "ivrit-whisper-large-v3-turbo-q5_0.bin",
+            url = "$QUANTIZED/ivrit-whisper-large-v3-turbo-q5_0.bin",
+            approxBytes = 548 * MB,
+            note = "מכוונן לעברית, מכווץ ל-q5_0. פי 3 מהר מ-large-v3 ובאיכות קרובה מאוד — " +
+                "ההמלצה. שפת התמלול חייבת להיות עברית, לא \"זיהוי אוטומטי\"",
+        ),
+        CatalogModel(
+            id = "ivrit-large-v3-q5",
+            kind = ModelKind.WHISPER,
+            displayName = "ivrit.ai large-v3 — מכווץ",
+            fileName = "ivrit-whisper-large-v3-q5_0.bin",
+            url = "$QUANTIZED/ivrit-whisper-large-v3-q5_0.bin",
+            approxBytes = 1031 * MB,
+            note = "המדויק ביותר שנמדד, אבל פי ~3 איטי מה-turbo. שווה כשהדיוק קריטי",
+        ),
+        CatalogModel(
+            id = "ivrit-large-v3-q8",
+            kind = ModelKind.WHISPER,
+            displayName = "ivrit.ai large-v3 — כיווץ עדין (q8_0)",
+            fileName = "ivrit-whisper-large-v3-q8_0.bin",
+            url = "$QUANTIZED/ivrit-whisper-large-v3-q8_0.bin",
+            approxBytes = 1580 * MB,
+            note = "כיווץ כמעט ללא אובדן, אך גדול ואיטי יותר מ-q5_0. רק אם q5_0 מפספס משהו",
+        ),
         CatalogModel(
             id = "ivrit-large-v3-turbo",
             kind = ModelKind.WHISPER,
-            displayName = "ivrit.ai large-v3-turbo (עברית)",
+            displayName = "ivrit.ai turbo — מקורי f16",
             fileName = "ivrit-whisper-large-v3-turbo.bin",
             url = "https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml/resolve/main/" +
                 "ggml-model.bin",
             approxBytes = 1620 * MB,
-            note = "מכוונן לעברית והמהיר מבין השניים — התחילו כאן. שפת התמלול חייבת " +
-                "להיות עברית, לא \"זיהוי אוטומטי\"",
-        ),
-        CatalogModel(
-            id = "ivrit-large-v3",
-            kind = ModelKind.WHISPER,
-            displayName = "ivrit.ai large-v3 (עברית, מדויק ואיטי)",
-            fileName = "ivrit-whisper-large-v3.bin",
-            url = "https://huggingface.co/ivrit-ai/whisper-large-v3-ggml/resolve/main/" +
-                "ggml-model.bin",
-            approxBytes = 3095 * MB,
-            note = "לא מומלץ לטלפון: 32 שכבות מפענח מול 4 ב-turbo, כלומר איטי פי ~8. שעת הקלטה עלולה לקחת יום. בחרו בזה רק אם turbo לא מספיק מדויק ואתם מוכנים לחכות",
+            note = "אותו מודל כמו הראשון ברשימה בלי כיווץ — פי 3 בנפח, ואיטי יותר",
         ),
         CatalogModel(
             id = "whisper-large-v3-turbo",
@@ -53,13 +81,13 @@ object ModelCatalog {
             note = "המודל הרשמי. עדיף על ivrit רק בישיבות שמערבבות עברית ואנגלית",
         ),
         CatalogModel(
-            id = "whisper-small",
+            id = "ivrit-large-v3",
             kind = ModelKind.WHISPER,
-            displayName = "Whisper small (רב-לשוני)",
-            fileName = "ggml-small.bin",
-            url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-            approxBytes = 488 * MB,
-            note = "מהיר, אבל בעברית הוא טועה הרבה. לא מומלץ לישיבות אמיתיות",
+            displayName = "ivrit.ai large-v3 — מקורי f16",
+            fileName = "ivrit-whisper-large-v3.bin",
+            url = "https://huggingface.co/ivrit-ai/whisper-large-v3-ggml/resolve/main/ggml-model.bin",
+            approxBytes = 3095 * MB,
+            note = "הכי איטי בהפרש גדול, בלי יתרון דיוק על הגרסה המכווצת. עדיף q5_0 למעלה",
         ),
         CatalogModel(
             id = "whisper-base",
