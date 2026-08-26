@@ -11,8 +11,7 @@ Nothing leaves the device — the app requests no network permission at all.
 ## הורדה והתקנה (Download)
 
 1. פותחים בטלפון את [דף ה-Release](https://github.com/Stastyle/Local-Summerizer/releases/tag/apk-latest)
-   ומורידים את **`app-release.apk`** (זה הקובץ להתקנה; `app-debug.apk` הוא גרסת אבחון
-   שמותקנת בנפרד וכבדה יותר).
+   ומורידים את **`app-release.apk`**.
 2. באנדרואיד מאשרים התקנה ממקור לא מוכר (הטלפון יציע את זה בעצמו).
 3. מתקינים ופותחים.
 
