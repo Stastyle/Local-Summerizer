@@ -1,22 +1,38 @@
 package com.stastyle.localsummarizer.nativebridge
 
 import android.content.Context
+import android.os.Build
+import android.util.Log
+import com.stastyle.localsummarizer.BuildConfig
+import com.stastyle.localsummarizer.R
+import java.io.File
+import java.util.zip.ZipFile
 
 object NativeLib {
+    private const val TAG = "NativeLib"
+    private const val CPU_BACKEND_PREFIX = "libggml-cpu-"
+
     @Volatile
     private var loaded = false
 
     /**
      * ggml ships one CPU backend per ARM feature level and picks the best one
-     * the device supports at runtime. Its own search path is useless on
-     * Android, so the APK's native library directory is passed in explicitly.
+     * the device supports at runtime. It finds them by listing a directory,
+     * and its own default search path resolves to the zygote on Android, so
+     * the app has to hand it a directory that really holds the files.
      */
     fun ensureLoaded(context: Context) {
         if (loaded) return
         synchronized(this) {
             if (loaded) return
             System.loadLibrary("summarizer")
-            nativeLoadBackends(context.applicationInfo.nativeLibraryDir)
+            val searchDir = backendDirectory(context)
+            nativeLoadBackends(searchDir)
+            val registered = nativeBackendCount()
+            Log.i(TAG, "ggml registered $registered backend(s) from $searchDir")
+            // Without a CPU backend, whisper hits GGML_ASSERT on a null device
+            // and aborts the process. Fail with a readable message instead.
+            check(registered > 0) { context.getString(R.string.error_no_cpu_backend) }
             loaded = true
         }
     }
@@ -24,6 +40,62 @@ object NativeLib {
     val isLoaded: Boolean get() = loaded
 
     fun backendCount(): Int = nativeBackendCount()
+
+    /**
+     * Normally the installer extracts the libraries and [ApplicationInfo
+     * .nativeLibraryDir] is exactly what ggml wants. If packaging ever leaves
+     * them compressed inside the APK that directory comes up empty, so unpack
+     * the CPU variants once into private storage and scan that instead.
+     */
+    private fun backendDirectory(context: Context): String {
+        val installed = File(context.applicationInfo.nativeLibraryDir)
+        if (installed.hasCpuBackends()) return installed.absolutePath
+        Log.w(TAG, "$installed holds no ggml CPU backends; unpacking them from the APK")
+        return stageBackendsFromApk(context)?.absolutePath ?: installed.absolutePath
+    }
+
+    private fun File.hasCpuBackends(): Boolean =
+        isDirectory && listFiles { file -> file.isCpuBackend() }?.isNotEmpty() == true
+
+    private fun File.isCpuBackend(): Boolean =
+        name.startsWith(CPU_BACKEND_PREFIX) && name.endsWith(".so")
+
+    private fun stageBackendsFromApk(context: Context): File? = runCatching {
+        // Stamped with the build so an app update never reuses stale backends.
+        val root = File(context.noBackupFilesDir, "ggml-backends")
+        val target = File(root, BuildConfig.GIT_SHA.ifBlank { BuildConfig.VERSION_NAME })
+        if (target.hasCpuBackends()) return@runCatching target
+        root.deleteRecursively()
+        target.mkdirs()
+
+        val archives = buildList {
+            add(context.applicationInfo.sourceDir)
+            context.applicationInfo.splitSourceDirs?.let { addAll(it) }
+        }
+        // Only the ABI the process actually runs; the others would fail dlopen.
+        for (abi in Build.SUPPORTED_ABIS) {
+            var extracted = 0
+            for (archive in archives) {
+                ZipFile(archive).use { zip ->
+                    zip.entries().asSequence()
+                        .filter { it.name.startsWith("lib/$abi/") }
+                        .filter { File(it.name).isCpuBackend() }
+                        .forEach { entry ->
+                            val out = File(target, File(entry.name).name)
+                            zip.getInputStream(entry).use { input ->
+                                out.outputStream().use { output -> input.copyTo(output) }
+                            }
+                            extracted++
+                        }
+                }
+            }
+            if (extracted > 0) {
+                Log.i(TAG, "unpacked $extracted ggml CPU backend(s) for $abi into $target")
+                return@runCatching target
+            }
+        }
+        null
+    }.onFailure { Log.w(TAG, "could not unpack ggml backends from the APK", it) }.getOrNull()
 
     private external fun nativeLoadBackends(nativeLibDir: String)
     private external fun nativeBackendCount(): Int

@@ -18,6 +18,7 @@ import com.stastyle.localsummarizer.MainActivity
 import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.appContainer
 import com.stastyle.localsummarizer.domain.PipelineState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,29 +90,43 @@ class ProcessingService : Service() {
         runFinished = false
 
         job = scope.launch {
-            val settings = appContainer().settingsRepository.current()
             val notifier = launch { observeStateForNotification() }
-            // NonCancellable on purpose: the run is stopped through
-            // PipelineManager's flags, which also interrupt the native call.
-            // Coroutine cancellation would instead discard the resumption —
-            // silently skipping the completion notification exactly when the
-            // system tears the service down (the Android 15 runtime cap).
-            withContext(inferenceDispatcher + NonCancellable) {
-                val finalState = MeetingPipeline(
-                    context = applicationContext,
-                    settings = settings,
-                    audioUri = audioUri,
-                    audioName = audioName,
-                ).run()
-                postCompletionNotification(finalState, audioName)
-                // Set inside the block: a cancelled scope discards everything
-                // after it, and onDestroy must still see a finished run.
-                runFinished = true
+            try {
+                val settings = appContainer().settingsRepository.current()
+                // NonCancellable on purpose: the run is stopped through
+                // PipelineManager's flags, which also interrupt the native call.
+                // Coroutine cancellation would instead discard the resumption —
+                // silently skipping the completion notification exactly when the
+                // system tears the service down (the Android 15 runtime cap).
+                withContext(inferenceDispatcher + NonCancellable) {
+                    val finalState = MeetingPipeline(
+                        context = applicationContext,
+                        settings = settings,
+                        audioUri = audioUri,
+                        audioName = audioName,
+                    ).run()
+                    postCompletionNotification(finalState, audioName)
+                    // Set inside the block: a cancelled scope discards everything
+                    // after it, and onDestroy must still see a finished run.
+                    runFinished = true
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // Anything that escapes here would take the whole process down
+                // and leave the user staring at a crash instead of a reason.
+                withContext(NonCancellable) {
+                    val failed = PipelineState.Failed(e.message ?: e.javaClass.simpleName)
+                    PipelineManager.update(failed)
+                    runCatching { postCompletionNotification(failed, audioName) }
+                    runFinished = true
+                }
+            } finally {
+                notifier.cancel()
+                // Tied to this start command, so a start that arrived in the
+                // meantime is not torn down along with this one.
+                stopSelf(startId)
             }
-            notifier.cancel()
-            // Tied to this start command, so a start that arrived in the
-            // meantime is not torn down along with this one.
-            stopSelf(startId)
         }
         return START_NOT_STICKY
     }

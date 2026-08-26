@@ -95,23 +95,17 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
-      # ggml only dispatches at runtime if every CPU-variant .so actually made
-      # it into the APK, so fail the build rather than ship a silent fallback.
-      - name: Verify packaged native libraries
+      # The runtime depends on packaging details that never surface as build
+      # errors: the engine libraries being present, every ggml CPU variant
+      # being packaged, the libraries being extracted on install so ggml's
+      # backend scan can see them, and 16 KB page alignment.
+      - name: Verify APK packaging
         run: |
           set -euo pipefail
           # An unsigned build is named app-release-unsigned.apk, so resolve the
           # file rather than assuming which one the signing path produced.
           APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
-          echo "Native libraries in $APK:"
-          unzip -l "$APK" | grep '\.so$' | awk '{print $4, $1}'
-          for required in libsummarizer.so libggml-base.so libllama.so libwhisper.so libc++_shared.so; do
-            unzip -l "$APK" | grep -q "lib/arm64-v8a/$required" \
-              || { echo "::error::missing $required"; exit 1; }
-          done
-          variants=$(unzip -l "$APK" | grep -c 'libggml-cpu-.*\.so' || true)
-          echo "ggml CPU variants packaged: $variants"
-          [ "$variants" -ge 2 ] || { echo "::error::runtime CPU dispatch has no variants"; exit 1; }
+          python3 scripts/verify_apk.py "$APK"
 
       # Publishing an APK that turns out to be unsigned would strand the
       # in-app updater, so confirm the signature before it leaves the runner.

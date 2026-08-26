@@ -89,7 +89,11 @@ class MeetingPipeline(
             // A cancelled scope is a stop, never a failure.
             saveRecord(startedAt, transcript, "")
             return finish(PipelineState.Cancelled)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable, not Exception: a native library that fails to load
+            // raises UnsatisfiedLinkError, and a model too large for the
+            // device raises OutOfMemoryError. Both are Errors, and letting one
+            // escape a coroutine kills the process instead of showing why.
             if (cancelled()) {
                 saveRecord(startedAt, transcript, "")
                 return finish(PipelineState.Cancelled)

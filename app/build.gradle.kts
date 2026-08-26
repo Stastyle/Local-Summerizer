@@ -110,6 +110,17 @@ android {
         compose = true
         buildConfig = true
     }
+
+    packaging {
+        jniLibs {
+            // ggml picks its CPU backend at runtime by scanning the app's
+            // native library directory for libggml-cpu-*.so. Modern packaging
+            // leaves those files inside the APK and never populates that
+            // directory, so nothing registers and whisper aborts on the null
+            // CPU device. Extracting them on install is what the scan expects.
+            useLegacyPackaging = true
+        }
+    }
 }
 
 kotlin {

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "ggml-backend.h"
 #include "llama.h"
 #include "jni_utils.h"
 
@@ -65,6 +66,12 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeInit(
         JNIEnv * env, jobject /*thiz*/, jstring model_path, jint n_ctx, jint n_threads) {
     ensure_backend_initialized();
+
+    // Same abort-on-null-device hazard as the whisper side; fail catchably.
+    if (!ggml_cpu_backend_available()) {
+        throw_runtime_exception(env, "no ggml CPU backend is registered");
+        return 0;
+    }
 
     const std::string path = jstring_to_utf8(env, model_path);
 

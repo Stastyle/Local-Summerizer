@@ -5,6 +5,16 @@
 #include "ggml-backend.h"
 #include "jni_utils.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "BackendLoader", __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "BackendLoader", __VA_ARGS__)
+#else
+#include <cstdio>
+#define LOGI(...) do { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
+#define LOGE(...) do { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } while (0)
+#endif
+
 /**
  * ggml builds one CPU backend per ARM feature level and dlopens the best one
  * the device supports. Its default search path is derived from
@@ -21,6 +31,20 @@ Java_com_stastyle_localsummarizer_nativebridge_NativeLib_nativeLoadBackends(
     } else {
         ggml_backend_load_all_from_path(dir.c_str());
     }
+    const size_t devices = ggml_backend_dev_count();
+    LOGI("searched %s: %zu backend(s), %zu device(s)",
+         dir.empty() ? "(default paths)" : dir.c_str(), ggml_backend_reg_count(), devices);
+    for (size_t i = 0; i < devices; ++i) {
+        ggml_backend_dev_t dev = ggml_backend_dev_get(i);
+        LOGI("  device %zu: %s (%s)", i, ggml_backend_dev_name(dev), ggml_backend_dev_description(dev));
+    }
+    if (!ggml_cpu_backend_available()) {
+        LOGE("no CPU backend registered — inference would abort");
+    }
+}
+
+bool ggml_cpu_backend_available() {
+    return ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_CPU) != nullptr;
 }
 
 extern "C" JNIEXPORT jint JNICALL

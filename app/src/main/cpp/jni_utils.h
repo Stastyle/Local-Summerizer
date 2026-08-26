@@ -17,3 +17,8 @@ jstring utf8_to_jstring(JNIEnv * env, const std::string & str);
 size_t utf8_valid_prefix_len(const char * data, size_t len);
 
 void throw_runtime_exception(JNIEnv * env, const std::string & message);
+
+// True once ggml has a CPU device registered. Nearly every ggml entry point
+// asserts on a null device rather than returning an error, so callers check
+// this first and raise a Java exception instead of aborting the process.
+bool ggml_cpu_backend_available();

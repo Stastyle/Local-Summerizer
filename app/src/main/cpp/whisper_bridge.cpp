@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "ggml-backend.h"
 #include "whisper.h"
 #include "jni_utils.h"
 
@@ -82,6 +83,13 @@ struct MappedPcm {
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeInit(
         JNIEnv * env, jobject /*thiz*/, jstring model_path) {
+    // whisper_model_load reaches ggml_backend_dev_backend_reg(nullptr) when no
+    // CPU device is registered, and that is a GGML_ASSERT — an abort, not a
+    // return value. Refuse here so the failure is catchable in Kotlin.
+    if (!ggml_cpu_backend_available()) {
+        throw_runtime_exception(env, "no ggml CPU backend is registered");
+        return 0;
+    }
     const std::string path = jstring_to_utf8(env, model_path);
     whisper_context_params cparams = whisper_context_default_params();
     cparams.use_gpu = false;

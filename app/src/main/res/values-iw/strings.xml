@@ -27,6 +27,7 @@
     <string name="error_no_llama_model">מודל הסיכום לא מוגדר. יש לבחור קובץ GGUF בהגדרות.</string>
     <string name="error_empty_transcript">התמליל ריק — לא זוהה דיבור בקובץ השמע.</string>
     <string name="error_whisper_load">טעינת מודל התמלול נכשלה. יש לבדוק את הקובץ בהגדרות.</string>
+    <string name="error_no_cpu_backend">בגרסה הזו אין מנוע חישוב שמתאים למעבד של המכשיר, ולכן שום דבר לא יכול לרוץ. אנא דווחו על כך יחד עם דגם הטלפון.</string>
     <string name="error_llama_load">טעינת מודל הסיכום נכשלה. ייתכן שהמודל גדול מדי לזיכרון המכשיר, או שהקובץ אינו תקין.</string>
     <string name="open_settings">הגדרות</string>
     <string name="open_history">היסטוריה</string>
