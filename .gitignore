@@ -9,3 +9,4 @@
 .cxx/
 app/build/
 *.apk.idsig
+/release-notes.md

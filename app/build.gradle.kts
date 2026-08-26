@@ -57,6 +57,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // The debug APK is signed with a throwaway debug key while the
+            // release APK uses the committed one; without a distinct id the
+            // second install fails with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")
@@ -89,9 +96,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.androidx.documentfile)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     debugImplementation(libs.androidx.compose.ui.tooling)

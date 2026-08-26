@@ -21,6 +21,9 @@ jobs:
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 2G
+      # The NDK is reinstalled on every runner, so mtime-based checks would
+      # invalidate every object; hash the compiler binary instead.
+      CCACHE_COMPILERCHECK: content
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,17 +93,28 @@ jobs:
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/release/app-release.apk
 
+      # Uploading into an existing release keeps the download URL valid even if
+      # a run is cancelled midway; delete-then-recreate could leave the page 404.
       - name: Update rolling release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           git tag -f apk-latest
           git push -f origin apk-latest
-          gh release delete apk-latest -y || true
-          gh release create apk-latest \
-            --prerelease \
-            --title "Local Summarizer — latest APK" \
-            --notes "APK builds from commit ${GITHUB_SHA}. Install app-release.apk on your phone (recommended)." \
+          cat > release-notes.md <<NOTES
+          Built from \`${GITHUB_REF_NAME}\` at commit ${GITHUB_SHA}.
+
+          **Install \`app-release.apk\`** — that is the one for your phone.
+
+          \`app-debug.apk\` is signed with a different key and installs alongside it
+          as a separate \`.debug\` app, for troubleshooting only.
+          NOTES
+          gh release view apk-latest >/dev/null 2>&1 \
+            || gh release create apk-latest --prerelease \
+                 --title "Local Summarizer — latest APK" --notes-file release-notes.md
+          gh release edit apk-latest --notes-file release-notes.md
+          gh release upload apk-latest --clobber \
             app/build/outputs/apk/release/app-release.apk \
             app/build/outputs/apk/debug/app-debug.apk
