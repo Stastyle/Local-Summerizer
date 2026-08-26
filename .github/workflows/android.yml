@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_MAXSIZE: 2G
@@ -64,11 +64,16 @@ jobs:
             ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', '.gitmodules') }}-
             ccache-${{ runner.os }}-
 
+      # Runs in about a minute without touching the NDK build, so a broken
+      # test fails the run before the nine-minute native compile.
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Build APKs
-        run: ./gradlew assembleDebug assembleRelease --stacktrace
+      # Release only: the native build is four ARM CPU variants, and AGP
+      # compiles them separately per APK variant, so building the debug APK
+      # too would double a build that already dominates the run.
+      - name: Build APK
+        run: ./gradlew assembleRelease --stacktrace
 
       # ggml only dispatches at runtime if every CPU-variant .so actually made
       # it into the APK, so fail the build rather than ship a silent fallback.
@@ -88,10 +93,8 @@ jobs:
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: local-summarizer-apks
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release.apk
+          name: local-summarizer-apk
+          path: app/build/outputs/apk/release/app-release.apk
 
       # Uploading into an existing release keeps the download URL valid even if
       # a run is cancelled midway; delete-then-recreate could leave the page 404.
@@ -106,15 +109,11 @@ jobs:
           cat > release-notes.md <<NOTES
           Built from \`${GITHUB_REF_NAME}\` at commit ${GITHUB_SHA}.
 
-          **Install \`app-release.apk\`** — that is the one for your phone.
-
-          \`app-debug.apk\` is signed with a different key and installs alongside it
-          as a separate \`.debug\` app, for troubleshooting only.
+          Download **\`app-release.apk\`** and install it on your phone.
           NOTES
           gh release view apk-latest >/dev/null 2>&1 \
             || gh release create apk-latest --prerelease \
                  --title "Local Summarizer — latest APK" --notes-file release-notes.md
           gh release edit apk-latest --notes-file release-notes.md
           gh release upload apk-latest --clobber \
-            app/build/outputs/apk/release/app-release.apk \
-            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release.apk

@@ -21,11 +21,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
+        val openHistory = intent?.getBooleanExtra(EXTRA_OPEN_HISTORY, false) == true
         setContent {
             LocalSummarizerTheme {
-                AppNavHost()
+                AppNavHost(openHistoryOnStart = openHistory)
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_HISTORY = "open_history"
     }
 
     private fun requestNotificationPermissionIfNeeded() {

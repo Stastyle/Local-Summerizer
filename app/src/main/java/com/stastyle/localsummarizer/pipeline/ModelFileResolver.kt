@@ -76,6 +76,19 @@ object ModelFileResolver {
             return target
         }
 
+        // A GGUF can be several GB; failing here with a clear message beats
+        // filling the device and dying halfway through the copy.
+        if (expectedSize > 0) {
+            val free = dir.usableSpace
+            if (free in 0 until expectedSize + SPACE_HEADROOM_BYTES) {
+                throw IllegalStateException(
+                    "Not enough free storage to import the model: " +
+                        "${expectedSize / (1 shl 20)} MB needed, " +
+                        "${free / (1 shl 20)} MB available",
+                )
+            }
+        }
+
         val tmp = File(dir, "${target.name}.part")
         context.contentResolver.openInputStream(uri)?.use { input ->
             tmp.outputStream().use { output ->
@@ -97,4 +110,6 @@ object ModelFileResolver {
         }
         return target
     }
+
+    private const val SPACE_HEADROOM_BYTES = 256L shl 20
 }

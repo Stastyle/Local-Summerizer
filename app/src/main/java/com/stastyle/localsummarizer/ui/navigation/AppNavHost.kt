@@ -1,6 +1,7 @@
 package com.stastyle.localsummarizer.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -15,8 +16,11 @@ object Routes {
 }
 
 @Composable
-fun AppNavHost() {
+fun AppNavHost(openHistoryOnStart: Boolean = false) {
     val navController = rememberNavController()
+    LaunchedEffect(openHistoryOnStart) {
+        if (openHistoryOnStart) navController.navigate(Routes.HISTORY)
+    }
     NavHost(navController = navController, startDestination = Routes.MAIN) {
         composable(Routes.MAIN) {
             MainScreen(

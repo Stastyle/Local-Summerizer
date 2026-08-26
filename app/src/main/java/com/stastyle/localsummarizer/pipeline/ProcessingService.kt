@@ -47,6 +47,12 @@ class ProcessingService : Service() {
     private var job: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
+    // The coroutine is still technically active while it runs its last
+    // statement, so onDestroy needs an explicit signal to tell a finished run
+    // apart from one the system is tearing down mid-inference.
+    @Volatile
+    private var runFinished = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -79,6 +85,7 @@ class ProcessingService : Service() {
 
         startForegroundWithNotification(getString(R.string.stage_decoding))
         acquireWakeLock()
+        runFinished = false
 
         job = scope.launch {
             val settings = appContainer().settingsRepository.current()
@@ -93,13 +100,16 @@ class ProcessingService : Service() {
             }
             notifier.cancel()
             postCompletionNotification(finalState, audioName)
-            stopSelf()
+            runFinished = true
+            // Tied to this start command, so a start that arrived in the
+            // meantime is not torn down along with this one.
+            stopSelf(startId)
         }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        if (job?.isActive == true) {
+        if (!runFinished && job?.isActive == true) {
             // The pipeline is still inside a native call; ask it to unwind.
             PipelineManager.requestCancel()
         }
@@ -193,9 +203,13 @@ class ProcessingService : Service() {
             is PipelineState.Cancelled -> getString(R.string.stage_cancelled)
             else -> return
         }
+        // If the process was killed while the app was in the background the
+        // in-memory result is gone, but the run is in History — open that.
         val contentIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
+            this, 2,
+            Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_OPEN_HISTORY, true)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)

@@ -11,7 +11,8 @@ Nothing leaves the device — the app requests no network permission at all.
 ## הורדה והתקנה (Download)
 
 1. פותחים בטלפון את [דף ה-Release](https://github.com/Stastyle/Local-Summerizer/releases/tag/apk-latest)
-   ומורידים את **`app-release.apk`**.
+   ומורידים את **`app-release.apk`** (זה הקובץ להתקנה; `app-debug.apk` הוא גרסת אבחון
+   שמותקנת בנפרד וכבדה יותר).
 2. באנדרואיד מאשרים התקנה ממקור לא מוכר (הטלפון יציע את זה בעצמו).
 3. מתקינים ופותחים.
 
@@ -82,7 +83,12 @@ Nothing leaves the device — the app requests no network permission at all.
 
 Kotlin · Jetpack Compose · Material 3 · MVVM · Coroutines/Flow · DataStore ·
 C++ NDK 28 · whisper.cpp v1.9.3 · llama.cpp b10630 · ggml משותף לשני המנועים ·
-ARM NEON + dotprod ‏(`-O3 -march=armv8.4-a+dotprod+fp16`) · arm64-v8a.
+ARM NEON עם dotprod ו-i8mm · ‏`-O3` בכל וריאנטי הבנייה · arm64-v8a.
+
+**בחירת קוד לפי המעבד:** ggml נבנה כאן עם וריאנט נפרד לכל רמת תכונות של ARM
+(‏armv8.0 בסיסי, armv8.2 עם dotprod ו-fp16, armv8.6 עם i8mm), והאפליקציה טוענת בזמן ריצה
+את הווריאנט המהיר ביותר שהמכשיר תומך בו. כך ה-S26 Ultra מקבל את הקרנלים המהירים
+בלי שהאפליקציה תקרוס במכשירים ישנים יותר.
 
 ההאצה היא על ה-CPU: ה-backends של Vulkan/OpenCL ב-llama.cpp עדיין לא יציבים על אנדרואיד
 (תלות בדרייברים, קריסות על חלק מה-GPU-ים), והבנייה מוכנה להוספתם בהמשך.
@@ -100,6 +106,17 @@ cd Local-Summerizer
 גרסת ה-release חתומה במפתח בדיקה שנמצא ב-repo (`app/release.keystore`) — הוא נועד
 לשימוש אישי בלבד ולא לפרסום בחנות.
 
+## בדיקות (Tests)
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+מכוסים: נכונות הרסמפלר (קצב פלט מדויק מכל קצבי הקלט הנפוצים, שימור אמפליטודה בטווח הדיבור,
+דיכוי aliasing מעל 8kHz, ועקביות בין קלט מקוטע לקלט רציף), ותבנית ה-ChatML והעטיפות בעברית.
+ה-CI מריץ אותם לפני כל בנייה, ונכשל אם ספריות ה-CPU של ggml לא נארזו ל-APK.
+
 ## פרטיות
 
-אין הרשאת `INTERNET` במניפסט. השמע, התמליל והסיכום לא עוזבים את המכשיר.
+אין הרשאת `INTERNET` במניפסט. השמע, התמליל והסיכום לא עוזבים את המכשיר,
+וגיבוי אנדרואיד האוטומטי מכובה כדי שתמלילים לא יסונכרנו ל-Google Drive.

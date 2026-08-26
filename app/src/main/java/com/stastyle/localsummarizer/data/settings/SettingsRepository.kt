@@ -29,7 +29,7 @@ data class AppSettings(
     val masterPrompt: String = DEFAULT_MASTER_PROMPT,
     val language: String = "he",
     val threads: Int = 0,
-    val contextSize: Int = 4096,
+    val contextSize: Int = 8192,
     val maxTokens: Int = 1500,
     val temperature: Float = 0.3f,
 ) {
@@ -61,7 +61,7 @@ class SettingsRepository(private val context: Context) {
             masterPrompt = prefs[Keys.masterPrompt] ?: DEFAULT_MASTER_PROMPT,
             language = prefs[Keys.language] ?: "he",
             threads = prefs[Keys.threads] ?: 0,
-            contextSize = prefs[Keys.contextSize] ?: 4096,
+            contextSize = prefs[Keys.contextSize] ?: 8192,
             maxTokens = prefs[Keys.maxTokens] ?: 1500,
             temperature = prefs[Keys.temperature] ?: 0.3f,
         )
