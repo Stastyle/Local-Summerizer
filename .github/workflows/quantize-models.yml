@@ -1,0 +1,128 @@
+name: Quantize Hebrew models
+
+# Manual only. The ivrit.ai Whisper models ship as f16 — 3.1 GB for large-v3 —
+# and CPU decoding on a phone is bound by memory bandwidth, so the weights'
+# size is close to the whole cost. Quantizing them is the one change that
+# makes the accurate model usable without giving up the accuracy.
+#
+# It runs here rather than on the phone because whisper.cpp's quantize tool is
+# a desktop build, and because publishing the result to this repository's own
+# release gives a URL that can actually be verified — huggingface.co is
+# unreachable from the environment the catalog is written in.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Which ivrit.ai model to quantize
+        required: true
+        default: large-v3-turbo
+        type: choice
+        options:
+          - large-v3-turbo
+          - large-v3
+      types:
+        description: Space-separated quantization types
+        required: true
+        default: q8_0 q5_0
+
+permissions:
+  contents: write
+
+jobs:
+  quantize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Only the quantize tool is needed, and it is a host binary — nothing
+      # here touches the Android build.
+      - name: Build the quantize tool
+        run: |
+          set -euo pipefail
+          # examples/CMakeLists.txt adds every example unconditionally, but
+          # only this one target is built, so the rest never compile.
+          cmake -S app/src/main/cpp/whisper.cpp -B /tmp/whisper-host \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWHISPER_BUILD_EXAMPLES=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DGGML_NATIVE=OFF
+          cmake --build /tmp/whisper-host --target whisper-quantize -j"$(nproc)"
+          find /tmp/whisper-host -name 'whisper-quantize' -type f -perm -u+x
+
+      - name: Resolve the source model
+        id: source
+        run: |
+          set -euo pipefail
+          case "${{ inputs.model }}" in
+            large-v3-turbo) REPO=ivrit-ai/whisper-large-v3-turbo-ggml ;;
+            large-v3)       REPO=ivrit-ai/whisper-large-v3-ggml ;;
+            *) echo "::error::unknown model"; exit 1 ;;
+          esac
+          URL="https://huggingface.co/$REPO/resolve/main/ggml-model.bin"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Source: $URL"
+          # Confirm before spending the download. This is also the check the
+          # catalog's URLs have never had.
+          curl -sSIL -o /dev/null -w 'HTTP %{http_code}, %{size_download} bytes\n' "$URL"
+
+      - name: Download
+        run: |
+          set -euo pipefail
+          curl -sSL --retry 3 --retry-delay 5 \
+            -o /tmp/source.bin "${{ steps.source.outputs.url }}"
+          ls -l /tmp/source.bin
+          echo "source sha256: $(sha256sum /tmp/source.bin | cut -d' ' -f1)"
+          # A truncated download or an HTML error page must not be quantized
+          # and published as a model.
+          test "$(stat -c%s /tmp/source.bin)" -gt 500000000 \
+            || { echo "::error::source model is implausibly small"; exit 1; }
+          head -c 4 /tmp/source.bin | grep -q 'ggml' \
+            || { echo "::error::source does not start with the ggml magic"; exit 1; }
+
+      - name: Quantize
+        id: quantize
+        run: |
+          set -euo pipefail
+          QUANTIZE=$(find /tmp/whisper-host -name 'whisper-quantize' -type f -perm -u+x | head -1)
+          test -x "$QUANTIZE" || { echo "::error::quantize tool not built"; exit 1; }
+          mkdir -p /tmp/out
+          SUMMARY=""
+          for type in ${{ inputs.types }}; do
+            OUT="/tmp/out/ivrit-whisper-${{ inputs.model }}-$type.bin"
+            echo "::group::$type"
+            "$QUANTIZE" /tmp/source.bin "$OUT" "$type"
+            echo "::endgroup::"
+            SIZE=$(stat -c%s "$OUT")
+            HASH=$(sha256sum "$OUT" | cut -d' ' -f1)
+            SUMMARY="$SUMMARY- \`$(basename "$OUT")\` — $((SIZE / 1024 / 1024)) MB, sha256 \`$HASH\`\n"
+          done
+          printf "%b" "$SUMMARY" > /tmp/summary.md
+          cat /tmp/summary.md
+          ls -l /tmp/out
+
+      - name: Publish to the models release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SOURCE_SIZE=$(stat -c%s /tmp/source.bin)
+          {
+            echo "Quantized builds of the ivrit.ai Hebrew Whisper models, for whisper.cpp."
+            echo
+            echo "Source: \`${{ steps.source.outputs.url }}\` ($((SOURCE_SIZE / 1024 / 1024)) MB, f16)"
+            echo
+            cat /tmp/summary.md
+            echo
+            echo "q8_0 is near-lossless and roughly halves the memory traffic;"
+            echo "q5_0 is about a third of the original at some cost in accuracy."
+          } > /tmp/notes.md
+          gh release view models >/dev/null 2>&1 \
+            || gh release create models --prerelease \
+                 --title "Quantized Hebrew models" --notes-file /tmp/notes.md
+          gh release edit models --notes-file /tmp/notes.md
+          gh release upload models --clobber /tmp/out/*.bin
+          cat /tmp/notes.md >> "$GITHUB_STEP_SUMMARY"

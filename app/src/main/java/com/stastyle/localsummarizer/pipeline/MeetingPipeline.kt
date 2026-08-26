@@ -245,8 +245,7 @@ class MeetingPipeline(
 
     private fun effectiveThreads(): Int {
         if (settings.threads > 0) return settings.threads
-        val cores = Runtime.getRuntime().availableProcessors()
-        return (cores - 2).coerceIn(2, 8)
+        return CpuTopology.inferenceThreads
     }
 }
 

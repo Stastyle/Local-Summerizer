@@ -8,6 +8,7 @@ import com.stastyle.localsummarizer.BuildConfig
 import com.stastyle.localsummarizer.appContainer
 import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.nativebridge.NativeLib
+import com.stastyle.localsummarizer.pipeline.CpuTopology
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -106,7 +107,12 @@ object Diagnostics {
         } else {
             appendLine("transcription model: ${settings.whisperModelName.ifBlank { "not set" }}")
             appendLine("summarization model: ${settings.llamaModelName.ifBlank { "not set" }}")
-            appendLine("language: ${settings.language}   threads: ${settings.threads}")
+            val threads = if (settings.threads > 0) {
+                "${settings.threads} (set)"
+            } else {
+                "${CpuTopology.inferenceThreads} (auto, fast cores)"
+            }
+            appendLine("language: ${settings.language}   threads: $threads")
             appendLine("beam size: ${settings.beamSize}" +
                 "   carry context: ${settings.transcriptionContext}")
             appendLine("glossary: ${settings.transcriptionPrompt.take(120)}")
