@@ -21,6 +21,7 @@ import com.stastyle.localsummarizer.appContainer
 import com.stastyle.localsummarizer.diagnostics.RunLog
 import com.stastyle.localsummarizer.domain.PipelineState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,8 +46,20 @@ class ProcessingService : Service() {
     // dedicated one rather than starving a shared dispatcher.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val inferenceDispatcher = Dispatchers.IO.limitedParallelism(1)
+    // The handler is the point: a child coroutine's failure propagates to the
+    // scope, not through the try/catch inside the parent's block, so without
+    // one an exception from the notification collector kills the process
+    // rather than the run.
+    private val crashGuard = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "pipeline scope failed", throwable)
+        RunLog.finished(applicationContext, "scope failed: ${throwable.javaClass.simpleName}")
+        PipelineManager.update(
+            PipelineState.Failed(throwable.message ?: throwable.javaClass.simpleName),
+        )
+        runCatching { stopSelf() }
+    }
     private val scope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default + CoroutineName("pipeline"),
+        SupervisorJob() + Dispatchers.Default + CoroutineName("pipeline") + crashGuard,
     )
     private var job: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
@@ -165,7 +178,7 @@ class ProcessingService : Service() {
             .filter { it.isRunning }
             .map(::stageLabel)
             .distinctUntilChanged()
-            .collect(::updateNotification)
+            .collect { label -> updateNotification(label) }
     }
 
     private fun stageLabel(state: PipelineState): String = when (state) {
@@ -249,8 +262,11 @@ class ProcessingService : Service() {
     }
 
     private fun updateNotification(text: String) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(NOTIFICATION_ID, buildNotification(text))
+        // Progress display is cosmetic; losing it must never cost the run.
+        runCatching {
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.notify(NOTIFICATION_ID, buildNotification(text))
+        }.onFailure { Log.w(TAG, "could not update the progress notification", it) }
     }
 
     /**
@@ -282,8 +298,10 @@ class ProcessingService : Service() {
             .setAutoCancel(true)
             .setContentIntent(contentIntent)
             .build()
-        getSystemService(NotificationManager::class.java)
-            ?.notify(COMPLETION_NOTIFICATION_ID, notification)
+        runCatching {
+            getSystemService(NotificationManager::class.java)
+                ?.notify(COMPLETION_NOTIFICATION_ID, notification)
+        }.onFailure { Log.w(TAG, "could not post the completion notification", it) }
     }
 
     private fun createNotificationChannel() {
