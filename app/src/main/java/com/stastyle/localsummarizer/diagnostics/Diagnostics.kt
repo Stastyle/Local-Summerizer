@@ -114,6 +114,12 @@ object Diagnostics {
         appendLine("last run: ${RunLog.lastOutcome(context)}")
         appendLine()
 
+        // The system's own record of why previous processes died — the only
+        // native crash trace reachable without adb.
+        appendLine("process exits:")
+        appendLine(ExitReasons.summary(context))
+        appendLine()
+
         val engineLog = runCatching { NativeLib.engineLog() }.getOrDefault("")
         if (engineLog.isBlank()) {
             appendLine("engine log: (empty — no model has been loaded yet)")
