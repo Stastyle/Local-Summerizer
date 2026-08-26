@@ -3,6 +3,8 @@ package com.stastyle.localsummarizer
 import android.app.Application
 import android.content.Context
 import com.stastyle.localsummarizer.data.history.HistoryRepository
+import com.stastyle.localsummarizer.data.models.ModelDownloader
+import com.stastyle.localsummarizer.data.models.ModelStore
 import com.stastyle.localsummarizer.data.settings.SettingsRepository
 
 class LocalSummarizerApp : Application() {
@@ -18,6 +20,8 @@ class LocalSummarizerApp : Application() {
 class AppContainer(context: Context) {
     val settingsRepository = SettingsRepository(context.applicationContext)
     val historyRepository = HistoryRepository(context.applicationContext)
+    val modelStore = ModelStore(context.applicationContext)
+    val modelDownloader = ModelDownloader(context.applicationContext)
 }
 
 fun Context.appContainer(): AppContainer =

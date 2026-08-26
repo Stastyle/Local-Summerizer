@@ -40,9 +40,6 @@
     <string name="settings_choose_file">בחירת קובץ</string>
     <string name="settings_clear">ניקוי</string>
     <string name="settings_not_configured">לא מוגדר</string>
-    <string name="settings_recommended_models">מודלים מומלצים</string>
-    <string name="settings_whisper_recommendation">תמלול (עברית): ivrit-ai whisper-large-v3-turbo בפורמט GGML ‏(כ־1.6GB) — הדיוק הטוב ביותר בעברית. גם מודלי Whisper רשמיים נתמכים.</string>
-    <string name="settings_llama_recommendation">סיכום: Qwen2.5-7B-Instruct Q4_K_M ‏(כ־4.7GB, האיכות הטובה ביותר, דורש 12GB RAM) או Qwen2.5-3B-Instruct Q4_K_M ‏(כ־2GB, מהיר בהרבה). כל מודל שיחה בפורמט GGUF יעבוד.</string>
     <string name="settings_prompt_section">פרומפט ראשי</string>
     <string name="settings_prompt_hint">הנחיית המערכת המשמשת לסיכום</string>
     <string name="settings_reset_prompt">איפוס לברירת מחדל</string>
@@ -74,4 +71,29 @@
     <string name="notification_channel_name">עיבוד ישיבה</string>
     <string name="notification_title">מעבד ישיבה</string>
     <string name="notification_done">הסיכום מוכן — יש להקיש לפתיחה</string>
+    <!-- Model downloads -->
+    <string name="settings_download_section">הורדת מודל</string>
+    <string name="settings_choose_from_catalog">בחירת מודל להורדה</string>
+    <string name="settings_or_pick_file">…או בחירת קובץ שכבר קיים במכשיר</string>
+    <string name="download">הורדה</string>
+    <string name="download_again">הורדה מחדש</string>
+    <string name="download_use">להשתמש בזה</string>
+    <string name="download_delete">מחיקה</string>
+    <string name="download_cancel">ביטול ההורדה</string>
+    <string name="download_checking">בודק מול השרת…</string>
+    <string name="download_progress">מוריד… %1$d%% ‏(%2$s מתוך %3$s)</string>
+    <string name="download_waiting_wifi">ממתין לרשת Wi-Fi…</string>
+    <string name="download_done">%1$s מוכן ונבחר</string>
+    <string name="download_installed">הורד · %1$s</string>
+    <string name="download_no_space">אין מספיק מקום פנוי במכשיר למודל הזה.</string>
+    <string name="download_failed_reason">ההורדה נכשלה (קוד %1$d)</string>
+    <string name="download_file_missing">ההורדה הסתיימה אבל הקובץ חסר.</string>
+    <string name="download_wifi_only">Wi-Fi בלבד</string>
+    <string name="download_wifi_only_hint">המודלים גדולים; כדאי להשאיר מסומן כדי לא לבזבז חבילת גלישה.</string>
+    <string name="download_update_available">קיימת גרסה מעודכנת</string>
+    <string name="check_updates">בדיקת עדכונים</string>
+    <string name="updates_found">ל־%1$d מודלים יש גרסה חדשה יותר</string>
+    <string name="updates_up_to_date">כל המודלים שהורדו מעודכנים</string>
+    <string name="updates_nothing_downloaded">אין מודלים שהורדו לבדיקה</string>
+    <string name="updates_check_failed">לא ניתן היה להגיע לשרת לבדיקה</string>
 </resources>

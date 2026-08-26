@@ -13,23 +13,29 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stastyle.localsummarizer.R
+import com.stastyle.localsummarizer.data.models.ModelKind
 import com.stastyle.localsummarizer.data.settings.DEFAULT_MASTER_PROMPT
 import com.stastyle.localsummarizer.ui.AppViewModelProvider
 import kotlin.math.roundToInt
@@ -49,6 +56,15 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val downloadedModels by viewModel.downloadedModels.collectAsStateWithLifecycle()
+    val downloadStatus by viewModel.downloadStatus.collectAsStateWithLifecycle()
+    val checkingUpdates by viewModel.checkingUpdates.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var wifiOnly by rememberSaveable { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+    }
 
     val whisperPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -71,6 +87,7 @@ fun SettingsScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -102,18 +119,75 @@ fun SettingsScreen(
                         onPick = { llamaPicker.launch(arrayOf("*/*")) },
                         onClear = viewModel::clearLlamaModel,
                     )
-                    Text(
-                        stringResource(R.string.settings_recommended_models),
-                        style = MaterialTheme.typography.titleSmall,
+                }
+            }
+
+            // Download section
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.settings_download_section),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            onClick = viewModel::checkForUpdates,
+                            enabled = !checkingUpdates,
+                        ) {
+                            Text(stringResource(R.string.check_updates))
+                        }
+                    }
+
+                    ModelDownloadPicker(
+                        kind = ModelKind.WHISPER,
+                        label = stringResource(R.string.settings_whisper_model),
+                        downloaded = downloadedModels,
+                        statuses = downloadStatus,
+                        onDownload = { viewModel.startDownload(it, allowMetered = !wifiOnly) },
+                        onCancel = viewModel::cancelDownload,
+                        onUse = viewModel::useDownloaded,
+                        onDelete = viewModel::deleteDownload,
                     )
-                    Text(
-                        stringResource(R.string.settings_whisper_recommendation),
-                        style = MaterialTheme.typography.bodySmall,
+
+                    HorizontalDivider()
+
+                    ModelDownloadPicker(
+                        kind = ModelKind.LLM,
+                        label = stringResource(R.string.settings_llama_model),
+                        downloaded = downloadedModels,
+                        statuses = downloadStatus,
+                        onDownload = { viewModel.startDownload(it, allowMetered = !wifiOnly) },
+                        onCancel = viewModel::cancelDownload,
+                        onUse = viewModel::useDownloaded,
+                        onDelete = viewModel::deleteDownload,
                     )
-                    Text(
-                        stringResource(R.string.settings_llama_recommendation),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+
+                    HorizontalDivider()
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Checkbox(checked = wifiOnly, onCheckedChange = { wifiOnly = it })
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.download_wifi_only),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                stringResource(R.string.download_wifi_only_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                    }
                 }
             }
 

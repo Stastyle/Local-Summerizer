@@ -40,9 +40,6 @@
     <string name="settings_choose_file">Choose file</string>
     <string name="settings_clear">Clear</string>
     <string name="settings_not_configured">Not configured</string>
-    <string name="settings_recommended_models">Recommended models</string>
-    <string name="settings_whisper_recommendation">Transcription (Hebrew): ivrit-ai whisper-large-v3-turbo (GGML, ~1.6GB) — the best Hebrew accuracy. Official Whisper models also work.</string>
-    <string name="settings_llama_recommendation">Summarization: Qwen2.5-7B-Instruct Q4_K_M (~4.7GB, best quality, needs 12GB RAM) or Qwen2.5-3B-Instruct Q4_K_M (~2GB, much faster). Any chat GGUF works.</string>
     <string name="settings_prompt_section">Master prompt</string>
     <string name="settings_prompt_hint">System prompt used for summarization</string>
     <string name="settings_reset_prompt">Reset to default</string>
@@ -74,4 +71,29 @@
     <string name="notification_channel_name">Meeting processing</string>
     <string name="notification_title">Processing meeting</string>
     <string name="notification_done">Summary is ready — tap to open</string>
+    <!-- Model downloads -->
+    <string name="settings_download_section">Download a model</string>
+    <string name="settings_choose_from_catalog">Choose a model to download</string>
+    <string name="settings_or_pick_file">…or pick a file you already have</string>
+    <string name="download">Download</string>
+    <string name="download_again">Download again</string>
+    <string name="download_use">Use this one</string>
+    <string name="download_delete">Delete</string>
+    <string name="download_cancel">Cancel download</string>
+    <string name="download_checking">Checking the server…</string>
+    <string name="download_progress">Downloading… %1$d%% (%2$s of %3$s)</string>
+    <string name="download_waiting_wifi">Waiting for Wi-Fi…</string>
+    <string name="download_done">%1$s is ready and selected</string>
+    <string name="download_installed">Downloaded · %1$s</string>
+    <string name="download_no_space">Not enough free storage for this model.</string>
+    <string name="download_failed_reason">Download failed (code %1$d)</string>
+    <string name="download_file_missing">The download finished but the file is missing.</string>
+    <string name="download_wifi_only">Wi-Fi only</string>
+    <string name="download_wifi_only_hint">Models are large; leave this on to avoid mobile data charges.</string>
+    <string name="download_update_available">An updated version is available</string>
+    <string name="check_updates">Check for updates</string>
+    <string name="updates_found">%1$d model(s) have a newer version</string>
+    <string name="updates_up_to_date">All downloaded models are up to date</string>
+    <string name="updates_nothing_downloaded">No downloaded models to check</string>
+    <string name="updates_check_failed">Could not reach the server to check</string>
 </resources>
