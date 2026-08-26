@@ -23,31 +23,52 @@ object ModelCatalog {
 
     val whisper: List<CatalogModel> = listOf(
         CatalogModel(
+            id = "ivrit-large-v3-turbo",
+            kind = ModelKind.WHISPER,
+            displayName = "ivrit.ai large-v3-turbo (עברית)",
+            fileName = "ivrit-whisper-large-v3-turbo.bin",
+            url = "https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml/resolve/main/" +
+                "ggml-model.bin",
+            approxBytes = 1620 * MB,
+            note = "מכוונן לעברית — הבחירה המומלצת. שפת התמלול חייבת להיות עברית, " +
+                "לא \"זיהוי אוטומטי\"",
+        ),
+        CatalogModel(
+            id = "ivrit-large-v3",
+            kind = ModelKind.WHISPER,
+            displayName = "ivrit.ai large-v3 (עברית, מדויק ואיטי)",
+            fileName = "ivrit-whisper-large-v3.bin",
+            url = "https://huggingface.co/ivrit-ai/whisper-large-v3-ggml/resolve/main/" +
+                "ggml-model.bin",
+            approxBytes = 3095 * MB,
+            note = "מדויק יותר מה-turbo אך איטי ממנו פי כמה — 32 שכבות מפענח במקום 4",
+        ),
+        CatalogModel(
             id = "whisper-large-v3-turbo",
             kind = ModelKind.WHISPER,
-            displayName = "Whisper large-v3-turbo",
+            displayName = "Whisper large-v3-turbo (רב-לשוני)",
             fileName = "ggml-large-v3-turbo.bin",
             url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
             approxBytes = 1624 * MB,
-            note = "האיכות הטובה ביותר מבין המודלים הרשמיים, כולל בעברית",
+            note = "המודל הרשמי. עדיף על ivrit רק בישיבות שמערבבות עברית ואנגלית",
         ),
         CatalogModel(
             id = "whisper-small",
             kind = ModelKind.WHISPER,
-            displayName = "Whisper small",
+            displayName = "Whisper small (רב-לשוני)",
             fileName = "ggml-small.bin",
             url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
             approxBytes = 488 * MB,
-            note = "פשרה בין מהירות לאיכות",
+            note = "מהיר, אבל בעברית הוא טועה הרבה. לא מומלץ לישיבות אמיתיות",
         ),
         CatalogModel(
             id = "whisper-base",
             kind = ModelKind.WHISPER,
-            displayName = "Whisper base",
+            displayName = "Whisper base (רב-לשוני)",
             fileName = "ggml-base.bin",
             url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
             approxBytes = 148 * MB,
-            note = "קטן ומהיר — טוב לבדיקה ראשונה שהכול עובד, לא לשימוש אמיתי",
+            note = "לבדיקה שהצינור עובד בלבד — התמליל שיפיק בעברית לא שמיש",
         ),
     )
 
@@ -60,7 +81,7 @@ object ModelCatalog {
             url = "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/" +
                 "qwen2.5-3b-instruct-q4_k_m.gguf",
             approxBytes = 2000 * MB,
-            note = "מהיר, ועברית טובה לסיכומים — מומלץ להתחיל כאן",
+            note = "מהיר, אבל בעברית הוא נוטה לגלוש לאנגלית ולסינית באמצע משפט",
         ),
         CatalogModel(
             id = "qwen2.5-7b-instruct-q4km",
@@ -70,7 +91,7 @@ object ModelCatalog {
             url = "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/" +
                 "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
             approxBytes = 4680 * MB,
-            note = "האיכות הטובה ביותר, איטי יותר. דורש 12GB RAM",
+            note = "עברית טובה בהרבה מ-3B, איטי יותר. דורש 12GB RAM",
         ),
     )
 
