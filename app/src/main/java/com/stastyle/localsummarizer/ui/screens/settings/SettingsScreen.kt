@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,6 +60,8 @@ fun SettingsScreen(
     val downloadedModels by viewModel.downloadedModels.collectAsStateWithLifecycle()
     val downloadStatus by viewModel.downloadStatus.collectAsStateWithLifecycle()
     val checkingUpdates by viewModel.checkingUpdates.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var wifiOnly by rememberSaveable { mutableStateOf(true) }
 
@@ -294,6 +297,27 @@ fun SettingsScreen(
                         valueRange = 0f..1f,
                         steps = 19,
                         onChangeFinished = { viewModel.setTemperature(it) },
+                    )
+                }
+            }
+
+            // App update section
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    AppUpdateSection(
+                        state = updateState,
+                        savedToken = settings.githubToken,
+                        onCheck = viewModel::checkForAppUpdate,
+                        onDownload = viewModel::downloadUpdate,
+                        onInstall = {
+                            viewModel.installIntent()?.let { intent ->
+                                runCatching { context.startActivity(intent) }
+                            }
+                        },
+                        onOpenReleasePage = {
+                            runCatching { context.startActivity(viewModel.releasePageIntent()) }
+                        },
+                        onSaveToken = viewModel::setGithubToken,
                     )
                 }
             }

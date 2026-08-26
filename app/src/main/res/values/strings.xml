@@ -96,4 +96,19 @@
     <string name="updates_up_to_date">All downloaded models are up to date</string>
     <string name="updates_nothing_downloaded">No downloaded models to check</string>
     <string name="updates_check_failed">Could not reach the server to check</string>
+    <!-- App update -->
+    <string name="app_update_section">App version</string>
+    <string name="app_update_installed">Installed build: %1$s</string>
+    <string name="app_update_check">Check for app update</string>
+    <string name="app_update_checking">Checking GitHub…</string>
+    <string name="app_update_up_to_date">You are on the latest build</string>
+    <string name="app_update_available">A newer build is available (%1$s)</string>
+    <string name="app_update_download">Download and install</string>
+    <string name="app_update_downloading">Downloading the update… %1$d%%</string>
+    <string name="app_update_install">Install now</string>
+    <string name="app_update_open_page">Open the release page</string>
+    <string name="app_update_needs_token">The repository is private. Paste a GitHub token below, or use the release page in your browser where you are already signed in.</string>
+    <string name="app_update_token">GitHub token (optional)</string>
+    <string name="app_update_token_hint">Only used to reach the private release. A fine-grained read-only token for this repository is enough.</string>
+    <string name="app_update_unknown_build">unknown</string>
 </resources>

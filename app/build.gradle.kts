@@ -1,5 +1,13 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+// Baked into BuildConfig so the app can tell whether the release on GitHub is
+// newer than the build running on the phone.
+val gitSha: String = runCatching {
+    providers.exec {
+        commandLine("git", "rev-parse", "HEAD")
+    }.standardOutput.asText.get().trim()
+}.getOrDefault("")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -18,6 +26,18 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
+        buildConfigField(
+            "String",
+            "UPDATE_BASE_URL",
+            "\"https://github.com/Stastyle/Local-Summerizer/releases/download/apk-latest\"",
+        )
+        buildConfigField(
+            "String",
+            "RELEASE_PAGE_URL",
+            "\"https://github.com/Stastyle/Local-Summerizer/releases/tag/apk-latest\"",
+        )
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -76,6 +96,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

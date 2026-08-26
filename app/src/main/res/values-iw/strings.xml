@@ -96,4 +96,19 @@
     <string name="updates_up_to_date">כל המודלים שהורדו מעודכנים</string>
     <string name="updates_nothing_downloaded">אין מודלים שהורדו לבדיקה</string>
     <string name="updates_check_failed">לא ניתן היה להגיע לשרת לבדיקה</string>
+    <!-- App update -->
+    <string name="app_update_section">גרסת האפליקציה</string>
+    <string name="app_update_installed">הגרסה המותקנת: %1$s</string>
+    <string name="app_update_check">בדיקת עדכון לאפליקציה</string>
+    <string name="app_update_checking">בודק מול GitHub…</string>
+    <string name="app_update_up_to_date">מותקנת הגרסה האחרונה</string>
+    <string name="app_update_available">קיימת גרסה חדשה יותר ‏(%1$s)</string>
+    <string name="app_update_download">הורדה והתקנה</string>
+    <string name="app_update_downloading">מוריד את העדכון… %1$d%%</string>
+    <string name="app_update_install">התקנה עכשיו</string>
+    <string name="app_update_open_page">פתיחת דף ההורדה</string>
+    <string name="app_update_needs_token">המאגר פרטי. אפשר להדביק כאן טוקן של GitHub, או לפתוח את דף ההורדה בדפדפן שבו כבר התחברתם.</string>
+    <string name="app_update_token">טוקן GitHub (אופציונלי)</string>
+    <string name="app_update_token_hint">משמש רק כדי להגיע למאגר הפרטי. מספיק טוקן קריאה בלבד למאגר הזה.</string>
+    <string name="app_update_unknown_build">לא ידוע</string>
 </resources>

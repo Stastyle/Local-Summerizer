@@ -6,6 +6,7 @@ import com.stastyle.localsummarizer.data.history.HistoryRepository
 import com.stastyle.localsummarizer.data.models.ModelDownloader
 import com.stastyle.localsummarizer.data.models.ModelStore
 import com.stastyle.localsummarizer.data.settings.SettingsRepository
+import com.stastyle.localsummarizer.data.update.AppUpdater
 
 class LocalSummarizerApp : Application() {
     lateinit var container: AppContainer
@@ -22,6 +23,7 @@ class AppContainer(context: Context) {
     val historyRepository = HistoryRepository(context.applicationContext)
     val modelStore = ModelStore(context.applicationContext)
     val modelDownloader = ModelDownloader(context.applicationContext)
+    val appUpdater = AppUpdater(context.applicationContext)
 }
 
 fun Context.appContainer(): AppContainer =

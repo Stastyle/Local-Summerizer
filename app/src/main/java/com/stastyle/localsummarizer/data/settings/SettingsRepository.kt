@@ -32,6 +32,8 @@ data class AppSettings(
     val contextSize: Int = 8192,
     val maxTokens: Int = 1500,
     val temperature: Float = 0.3f,
+    /** Optional GitHub token, only used to reach the private release. */
+    val githubToken: String = "",
 ) {
     val hasWhisperModel: Boolean get() = whisperModelUri.isNotBlank()
     val hasLlamaModel: Boolean get() = llamaModelUri.isNotBlank()
@@ -50,6 +52,7 @@ class SettingsRepository(private val context: Context) {
         val contextSize = intPreferencesKey("context_size")
         val maxTokens = intPreferencesKey("max_tokens")
         val temperature = floatPreferencesKey("temperature")
+        val githubToken = stringPreferencesKey("github_token")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -64,6 +67,7 @@ class SettingsRepository(private val context: Context) {
             contextSize = prefs[Keys.contextSize] ?: 8192,
             maxTokens = prefs[Keys.maxTokens] ?: 1500,
             temperature = prefs[Keys.temperature] ?: 0.3f,
+            githubToken = prefs[Keys.githubToken] ?: "",
         )
     }
 
@@ -105,5 +109,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setTemperature(temperature: Float) {
         context.dataStore.edit { it[Keys.temperature] = temperature }
+    }
+
+    suspend fun setGithubToken(token: String) {
+        context.dataStore.edit { it[Keys.githubToken] = token.trim() }
     }
 }

@@ -10,3 +10,4 @@
 app/build/
 *.apk.idsig
 /release-notes.md
+/version.json

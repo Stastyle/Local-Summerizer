@@ -13,6 +13,8 @@ import com.stastyle.localsummarizer.data.models.DownloadedModel
 import com.stastyle.localsummarizer.data.models.ModelCatalog
 import com.stastyle.localsummarizer.data.models.ModelKind
 import com.stastyle.localsummarizer.data.settings.AppSettings
+import com.stastyle.localsummarizer.data.update.AppUpdater
+import com.stastyle.localsummarizer.data.update.UpdateState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,6 +34,7 @@ class SettingsViewModel(private val app: LocalSummarizerApp) : AndroidViewModel(
     private val repository = app.container.settingsRepository
     private val store = app.container.modelStore
     private val downloader = app.container.modelDownloader
+    private val updater = app.container.appUpdater
 
     val settings: StateFlow<AppSettings> = repository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
@@ -49,6 +52,9 @@ class SettingsViewModel(private val app: LocalSummarizerApp) : AndroidViewModel(
     val messages: SharedFlow<String> = _messages
 
     private val pollers = mutableMapOf<String, Job>()
+
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState
 
     init {
         viewModelScope.launch {
@@ -325,6 +331,62 @@ class SettingsViewModel(private val app: LocalSummarizerApp) : AndroidViewModel(
                 }
         }
         return uri.lastPathSegment ?: "model"
+    }
+
+    fun setGithubToken(token: String) {
+        viewModelScope.launch { repository.setGithubToken(token) }
+    }
+
+    /** Asks the rolling release whether a newer build than this one exists. */
+    fun checkForAppUpdate() {
+        if (_updateState.value is UpdateState.Checking ||
+            _updateState.value is UpdateState.Downloading
+        ) {
+            return
+        }
+        viewModelScope.launch {
+            _updateState.value = UpdateState.Checking
+            val token = repository.current().githubToken
+            val remote = updater.fetchRemoteVersion(token).getOrElse { error ->
+                _updateState.value = UpdateState.Failed(
+                    error.message ?: error.javaClass.simpleName,
+                    needsAuth = error is AppUpdater.NeedsAuthException,
+                )
+                return@launch
+            }
+            _updateState.value = if (updater.isNewer(remote)) {
+                UpdateState.Available(remote)
+            } else {
+                UpdateState.UpToDate
+            }
+        }
+    }
+
+    fun downloadUpdate() {
+        val available = _updateState.value as? UpdateState.Available ?: return
+        viewModelScope.launch {
+            _updateState.value = UpdateState.Downloading(0)
+            val token = repository.current().githubToken
+            val file = updater.downloadApk(available.remote, token) { percent ->
+                _updateState.value = UpdateState.Downloading(percent)
+            }.getOrElse { error ->
+                _updateState.value = UpdateState.Failed(
+                    error.message ?: error.javaClass.simpleName,
+                    needsAuth = error is AppUpdater.NeedsAuthException,
+                )
+                return@launch
+            }
+            _updateState.value = UpdateState.ReadyToInstall(file)
+        }
+    }
+
+    fun installIntent() = (_updateState.value as? UpdateState.ReadyToInstall)
+        ?.let { updater.installIntent(it.file) }
+
+    fun releasePageIntent() = updater.releasePageIntent()
+
+    fun dismissUpdateState() {
+        _updateState.value = UpdateState.Idle
     }
 
     private companion object {
