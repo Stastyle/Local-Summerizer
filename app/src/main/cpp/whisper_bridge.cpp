@@ -1,9 +1,12 @@
 #include <jni.h>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <atomic>
-#include <cstdio>
 #include <cstring>
-#include <new>
 #include <string>
 #include <vector>
 
@@ -66,6 +69,13 @@ bool abort_callback(void * /*user_data*/) {
     return g_whisper_cancel.load();
 }
 
+// Unmaps the decoded PCM on every exit path, including the JNI error returns.
+struct MappedPcm {
+    void * addr;
+    size_t size;
+    ~MappedPcm() { if (addr != nullptr && addr != MAP_FAILED) munmap(addr, size); }
+};
+
 } // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -91,41 +101,30 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
         return nullptr;
     }
 
-    // Read raw little-endian float32 PCM. A long meeting is hundreds of MB, so
-    // it is kept on the native heap rather than in a Java float[].
+    // Map the decoded PCM instead of copying it: an hour of 16kHz mono float
+    // is ~220MB, and whisper needs its own mel buffer on top of the model.
     const std::string path = jstring_to_utf8(env, pcm_path);
-    std::vector<float> samples;
-    {
-        FILE * f = fopen(path.c_str(), "rb");
-        if (f == nullptr) {
-            throw_runtime_exception(env, "cannot open decoded audio: " + path);
-            return nullptr;
-        }
-        fseek(f, 0, SEEK_END);
-        const long bytes = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        if (bytes <= 0) {
-            fclose(f);
-            throw_runtime_exception(env, "decoded audio is empty");
-            return nullptr;
-        }
-        try {
-            samples.resize((size_t) bytes / sizeof(float));
-        } catch (const std::bad_alloc &) {
-            fclose(f);
-            throw_runtime_exception(env, "not enough memory for the decoded audio");
-            return nullptr;
-        }
-        const size_t read = fread(samples.data(), sizeof(float), samples.size(), f);
-        fclose(f);
-        samples.resize(read);
-        if (samples.empty()) {
-            throw_runtime_exception(env, "decoded audio is empty");
-            return nullptr;
-        }
+    const int fd = open(path.c_str(), O_RDONLY);
+    if (fd < 0) {
+        throw_runtime_exception(env, "cannot open decoded audio: " + path);
+        return nullptr;
     }
-
-    g_whisper_cancel = false;
+    struct stat st {};
+    if (fstat(fd, &st) != 0 || st.st_size < (off_t) sizeof(float)) {
+        close(fd);
+        throw_runtime_exception(env, "decoded audio is empty");
+        return nullptr;
+    }
+    const size_t mapped_bytes = (size_t) st.st_size;
+    void * mapped = mmap(nullptr, mapped_bytes, PROT_READ, MAP_PRIVATE, fd, 0);
+    close(fd);
+    if (mapped == MAP_FAILED) {
+        throw_runtime_exception(env, "cannot map decoded audio");
+        return nullptr;
+    }
+    const auto * samples_data = (const float *) mapped;
+    const size_t n_samples = mapped_bytes / sizeof(float);
+    MappedPcm pcm_guard{mapped, mapped_bytes};
 
     CallbackContext cb{};
     cb.env = env;
@@ -161,7 +160,7 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
     wparams.abort_callback           = abort_callback;
     wparams.abort_callback_user_data = nullptr;
 
-    const int ret = whisper_full(ctx, wparams, samples.data(), (int) samples.size());
+    const int ret = whisper_full(ctx, wparams, samples_data, (int) n_samples);
     if (ret != 0 && !g_whisper_cancel.load()) {
         throw_runtime_exception(env, "whisper_full failed with code " + std::to_string(ret));
         return nullptr;
@@ -185,6 +184,14 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeCancel(
         JNIEnv * /*env*/, jobject /*thiz*/) {
     g_whisper_cancel = true;
+}
+
+// Cleared only when a new run starts, so a cancel that arrives while the model
+// is still loading is not lost.
+extern "C" JNIEXPORT void JNICALL
+Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeResetCancel(
+        JNIEnv * /*env*/, jobject /*thiz*/) {
+    g_whisper_cancel = false;
 }
 
 extern "C" JNIEXPORT void JNICALL

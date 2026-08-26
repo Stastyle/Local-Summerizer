@@ -61,6 +61,11 @@ object WhisperBridge {
         nativeCancel()
     }
 
+    fun resetCancel() {
+        if (!NativeLib.isLoaded) return
+        nativeResetCancel()
+    }
+
     fun free(handle: Long) {
         if (handle != 0L) nativeFree(handle)
     }
@@ -75,6 +80,7 @@ object WhisperBridge {
         listener: Listener?,
     ): String
     private external fun nativeCancel()
+    private external fun nativeResetCancel()
     private external fun nativeFree(handle: Long)
 }
 
@@ -111,6 +117,11 @@ object LlamaBridge {
         nativeCancel()
     }
 
+    fun resetCancel() {
+        if (!NativeLib.isLoaded) return
+        nativeResetCancel()
+    }
+
     fun free(handle: Long) {
         if (handle != 0L) nativeFree(handle)
     }
@@ -126,5 +137,6 @@ object LlamaBridge {
         listener: TokenListener?,
     ): String
     private external fun nativeCancel()
+    private external fun nativeResetCancel()
     private external fun nativeFree(handle: Long)
 }

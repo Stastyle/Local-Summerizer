@@ -58,6 +58,9 @@ class ProcessingService : Service() {
         when (intent?.action) {
             ACTION_CANCEL -> {
                 PipelineManager.requestCancel()
+                // With a run in flight the job's own stopSelf() ends the
+                // service; without one nothing else would.
+                if (job?.isActive != true) stopSelf()
                 return START_NOT_STICKY
             }
             ACTION_START -> Unit

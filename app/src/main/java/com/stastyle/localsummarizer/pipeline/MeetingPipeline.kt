@@ -59,7 +59,11 @@ class MeetingPipeline(
 
             // 3. llama: load -> summarize -> free
             val summary = summarize(transcript)
-            if (cancelled()) return finish(PipelineState.Cancelled)
+            if (cancelled()) {
+                // A cancelled summary still leaves a usable transcript.
+                saveRecord(startedAt, transcript, summary)
+                return finish(PipelineState.Cancelled)
+            }
 
             val record = MeetingRecord(
                 createdAtEpochMs = startedAt,
@@ -78,13 +82,37 @@ class MeetingPipeline(
 
             return finish(PipelineState.Done(transcript, summary))
         } catch (e: InterruptedException) {
+            saveRecord(startedAt, transcript, "")
             return finish(PipelineState.Cancelled)
         } catch (e: Exception) {
-            if (cancelled()) return finish(PipelineState.Cancelled)
+            if (cancelled()) {
+                saveRecord(startedAt, transcript, "")
+                return finish(PipelineState.Cancelled)
+            }
             val message = e.message ?: e.javaClass.simpleName
             return finish(PipelineState.Failed(message))
         } finally {
             pcmFile.delete()
+        }
+    }
+
+    /** Persists whatever the run produced; no-ops when there is no transcript. */
+    private suspend fun saveRecord(startedAt: Long, transcript: String, summary: String) {
+        if (transcript.isBlank()) return
+        withContext(NonCancellable) {
+            runCatching {
+                context.appContainer().historyRepository.save(
+                    MeetingRecord(
+                        createdAtEpochMs = startedAt,
+                        audioFileName = audioName,
+                        transcript = transcript,
+                        summary = summary,
+                        processingTimeMs = System.currentTimeMillis() - startedAt,
+                        whisperModelName = settings.whisperModelName,
+                        llamaModelName = settings.llamaModelName,
+                    ),
+                )
+            }
         }
     }
 

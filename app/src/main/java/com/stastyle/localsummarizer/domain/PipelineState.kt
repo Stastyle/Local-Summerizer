@@ -10,6 +10,7 @@ sealed interface PipelineState {
         val chunkIndex: Int,
         val chunkCount: Int,
         val partialText: String = "",
+        val transcript: String = "",
     ) : PipelineState
     data class Done(val transcript: String, val summary: String) : PipelineState
     data class Failed(val message: String) : PipelineState

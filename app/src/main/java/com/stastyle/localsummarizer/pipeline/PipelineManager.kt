@@ -48,6 +48,9 @@ object PipelineManager {
         if (!settings.hasWhisperModel) return context.getString(R.string.error_no_whisper_model)
         if (!settings.hasLlamaModel) return context.getString(R.string.error_no_llama_model)
         cancelRequested = false
+        // The native flags live for the process, not the run.
+        runCatching { WhisperBridge.resetCancel() }
+        runCatching { LlamaBridge.resetCancel() }
         _state.value = PipelineState.Decoding
         return try {
             ProcessingService.start(context, audioUri, audioName)

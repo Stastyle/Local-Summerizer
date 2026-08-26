@@ -34,22 +34,28 @@ object AudioDecoder {
         onProgress: (Int) -> Unit = {},
         isCancelled: () -> Boolean = { false },
     ): Long {
-        val samples = PcmFileSink(target).use { sink ->
+        var primaryFailure: DecodeException? = null
+        var samples = PcmFileSink(target).use { sink ->
             try {
                 decodeWithMediaCodec(context, uri, sink, onProgress, isCancelled)
+                sink.sampleCount
             } catch (e: DecodeException) {
-                // MediaExtractor rejects some WAV variants; try a manual RIFF
-                // parse before giving up. The sink may hold a partial decode,
-                // so restart it from scratch.
-                sink.close()
-                target.delete()
-                return PcmFileSink(target).use { retrySink ->
-                    if (!decodeWavFallback(context, uri, retrySink, isCancelled)) throw e
-                    onProgress(100)
-                    retrySink.sampleCount
-                }
+                primaryFailure = e
+                -1L
             }
-            sink.sampleCount
+        }
+        if (samples < 0) {
+            // MediaExtractor rejects some WAV variants; try a manual RIFF parse
+            // before giving up. The first attempt may have written a partial
+            // decode, so start the file over.
+            target.delete()
+            samples = PcmFileSink(target).use { retrySink ->
+                if (!decodeWavFallback(context, uri, retrySink, isCancelled)) {
+                    throw primaryFailure ?: DecodeException("Failed to decode audio")
+                }
+                onProgress(100)
+                retrySink.sampleCount
+            }
         }
         if (samples == 0L) {
             target.delete()
@@ -105,6 +111,9 @@ object AudioDecoder {
             }
 
             try {
+                // Without this some decoders emit 24/32-bit packed PCM, which
+                // the mono conversion below would misread as 16-bit.
+                format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
                 codec.configure(format, null, null, 0)
                 codec.start()
 
@@ -117,6 +126,7 @@ object AudioDecoder {
                 var inputDone = false
                 var outputDone = false
                 var lastProgress = -1
+                var idleOutputs = 0
 
                 while (!outputDone) {
                     if (isCancelled()) {
@@ -144,6 +154,11 @@ object AudioDecoder {
 
                     val outIndex = codec.dequeueOutputBuffer(info, 10_000)
                     when {
+                        outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                            // Some decoders never flag EOS on a truncated file;
+                            // treat a long silence after EOS input as the end.
+                            if (inputDone && ++idleOutputs > 500) outputDone = true
+                        }
                         outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                             val outFormat = codec.outputFormat
                             srcSampleRate = outFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
@@ -156,6 +171,7 @@ object AudioDecoder {
                             resampler = LinearResampler(srcSampleRate, TARGET_SAMPLE_RATE)
                         }
                         outIndex >= 0 -> {
+                            idleOutputs = 0
                             if (info.size > 0) {
                                 val buffer = codec.getOutputBuffer(outIndex)!!
                                 buffer.position(info.offset)
@@ -208,7 +224,7 @@ object AudioDecoder {
                     sum / ch
                 }
             }
-            else -> {
+            AudioFormat.ENCODING_PCM_16BIT -> {
                 val shorts = buffer.asShortBuffer()
                 val frames = shorts.remaining() / ch
                 FloatArray(frames) { frame ->
@@ -217,6 +233,7 @@ object AudioDecoder {
                     sum / ch
                 }
             }
+            else -> throw DecodeException("Unsupported PCM encoding: $pcmEncoding")
         }
     }
 
@@ -301,20 +318,31 @@ object AudioDecoder {
         sink: PcmSink,
         isCancelled: () -> Boolean,
     ): Boolean {
+        // Only linear PCM (1) and IEEE float (3) are decodable here; companded
+        // formats such as mu-law would come out as full-scale noise.
+        if (audioFormat != 1 && audioFormat != 3) return false
+        if (bitsPerSample !in intArrayOf(8, 16, 24, 32)) return false
+        if (audioFormat == 3 && bitsPerSample != 32) return false
         val bytesPerSample = bitsPerSample / 8
         if (bytesPerSample !in 1..4) return false
         val frameSize = bytesPerSample * channels
         val resampler = LinearResampler(sampleRate, TARGET_SAMPLE_RATE)
         val chunk = ByteArray(64 * 1024 - (64 * 1024 % frameSize))
         var remaining = if (dataSize <= 0) Long.MAX_VALUE else dataSize
+        // A short read can end mid-frame; those bytes are kept for the next
+        // pass rather than dropped, which would misalign every later frame.
+        var carry = 0
 
         while (remaining > 0) {
             if (isCancelled()) throw DecodeException("Cancelled")
-            val toRead = minOf(chunk.size.toLong(), remaining).toInt()
-            val read = stream.read(chunk, 0, toRead)
+            val toRead = minOf((chunk.size - carry).toLong(), remaining).toInt()
+            if (toRead <= 0) break
+            val read = stream.read(chunk, carry, toRead)
             if (read <= 0) break
             remaining -= read
-            val frames = read / frameSize
+            val available = carry + read
+            val frames = available / frameSize
+            carry = available - frames * frameSize
             if (frames == 0) continue
             val bb = ByteBuffer.wrap(chunk, 0, frames * frameSize).order(ByteOrder.LITTLE_ENDIAN)
             val mono = FloatArray(frames)
@@ -326,6 +354,7 @@ object AudioDecoder {
                 mono[frame] = sum / channels
             }
             resampler.process(mono, mono.size, sink)
+            if (carry > 0) System.arraycopy(chunk, frames * frameSize, chunk, 0, carry)
         }
         return true
     }
@@ -371,18 +400,27 @@ object AudioDecoder {
 }
 
 /**
- * Streaming linear-interpolation resampler that keeps state across chunks, so
- * audio can be converted while it is being decoded without seams.
+ * Streaming resampler that keeps state across chunks, so audio can be
+ * converted while it is being decoded without seams.
+ *
+ * Downsampling 44.1/48 kHz to 16 kHz without filtering would fold everything
+ * above 8 kHz back into the speech band as aliasing noise, which measurably
+ * hurts transcription accuracy — so input is box-averaged over the decimation
+ * window before the interpolation step.
  */
 class LinearResampler(srcRate: Int, dstRate: Int) {
     private val step = srcRate.toDouble() / dstRate
+    private val taps = kotlin.math.max(1, step.toInt())
+    private val window = FloatArray(taps)
+    private var windowIndex = 0
+    private var windowFilled = 0
     private var pos = 0.0
     private var prev = 0f
     private var primed = false
 
     fun process(input: FloatArray, count: Int, out: PcmSink) {
         for (i in 0 until count) {
-            val current = input[i]
+            val current = if (taps == 1) input[i] else smooth(input[i])
             if (!primed) {
                 primed = true
                 prev = current
@@ -395,5 +433,14 @@ class LinearResampler(srcRate: Int, dstRate: Int) {
             pos -= 1.0
             prev = current
         }
+    }
+
+    private fun smooth(sample: Float): Float {
+        window[windowIndex] = sample
+        windowIndex = (windowIndex + 1) % taps
+        if (windowFilled < taps) windowFilled++
+        var sum = 0f
+        for (j in 0 until windowFilled) sum += window[j]
+        return sum / windowFilled
     }
 }

@@ -288,7 +288,7 @@ private fun ResultsSection(
             summary = ""
         }
         is PipelineState.Summarizing -> {
-            transcript = ""
+            transcript = pipelineState.transcript
             summary = pipelineState.partialText
         }
         else -> {
@@ -299,8 +299,9 @@ private fun ResultsSection(
     if (transcript.isBlank() && summary.isBlank()) return
 
     var selectedTab by remember { mutableIntStateOf(if (summary.isNotBlank()) 1 else 0) }
-    LaunchedEffect(pipelineState is PipelineState.Done) {
-        if (pipelineState is PipelineState.Done) selectedTab = 1
+    // Switch to the summary as soon as one starts streaming, not only at the end.
+    LaunchedEffect(summary.isNotBlank()) {
+        if (summary.isNotBlank()) selectedTab = 1
     }
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {

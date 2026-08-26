@@ -134,8 +134,6 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeGenerate(
         }
     }
 
-    g_llama_cancel = false;
-
     llama_context * ctx = handle->ctx;
     const llama_vocab * vocab = handle->vocab;
 
@@ -235,6 +233,14 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeCancel(
         JNIEnv * /*env*/, jobject /*thiz*/) {
     g_llama_cancel = true;
+}
+
+// Cleared only when a new run starts, so a cancel that arrives while the model
+// is still loading is not lost.
+extern "C" JNIEXPORT void JNICALL
+Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeResetCancel(
+        JNIEnv * /*env*/, jobject /*thiz*/) {
+    g_llama_cancel = false;
 }
 
 extern "C" JNIEXPORT void JNICALL
