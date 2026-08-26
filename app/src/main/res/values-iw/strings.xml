@@ -112,4 +112,8 @@
     <string name="app_update_token">טוקן GitHub (אופציונלי)</string>
     <string name="app_update_token_hint">משמש רק כדי להגיע למאגר הפרטי. מספיק טוקן קריאה בלבד למאגר הזה.</string>
     <string name="app_update_unknown_build">לא ידוע</string>
+    <!-- Diagnostics -->
+    <string name="diagnostics_section">אבחון</string>
+    <string name="diagnostics_hint">דוח על המנוע ועל המכשיר הזה. שימושי כשמשהו נכשל — אפשר להעתיק ולשלוח יחד עם תיאור התקלה. הדוח לא כולל שמע, תמליל או סיכום.</string>
+    <string name="diagnostics_run">הפקת דוח</string>
 </resources>

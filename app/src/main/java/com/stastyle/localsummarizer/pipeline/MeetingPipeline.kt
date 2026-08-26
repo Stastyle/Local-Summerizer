@@ -7,6 +7,7 @@ import com.stastyle.localsummarizer.appContainer
 import com.stastyle.localsummarizer.audio.AudioDecoder
 import com.stastyle.localsummarizer.data.history.MeetingRecord
 import com.stastyle.localsummarizer.data.settings.AppSettings
+import com.stastyle.localsummarizer.diagnostics.RunLog
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.nativebridge.LlamaBridge
 import com.stastyle.localsummarizer.nativebridge.WhisperBridge
@@ -42,6 +43,7 @@ class MeetingPipeline(
             // 1. decode audio to a 16kHz mono PCM scratch file (a long meeting
             //    is hundreds of MB — far past the Java heap limit)
             manager.update(PipelineState.Decoding)
+            RunLog.enter(context, "decoding audio")
             AudioDecoder.decodeToFile(
                 context = context,
                 uri = audioUri,
@@ -126,6 +128,15 @@ class MeetingPipeline(
     }
 
     private fun finish(state: PipelineState): PipelineState {
+        RunLog.finished(
+            context,
+            when (state) {
+                is PipelineState.Done -> "completed"
+                is PipelineState.Failed -> "failed: ${state.message}"
+                PipelineState.Cancelled -> "cancelled"
+                else -> state.javaClass.simpleName
+            },
+        )
         manager.update(state)
         return state
     }
@@ -135,6 +146,7 @@ class MeetingPipeline(
 
     private fun transcribe(pcmFile: File): String {
         manager.update(PipelineState.LoadingWhisper)
+        RunLog.enter(context, "loading whisper model ${settings.whisperModelName}")
         val resolved = ModelFileResolver.resolve(
             context, settings.whisperModelUri, settings.whisperModelName, ::cancelled,
         )
@@ -167,6 +179,7 @@ class MeetingPipeline(
             }
 
             manager.update(PipelineState.Transcribing(0, ""))
+            RunLog.enter(context, "transcribing")
             return WhisperBridge.transcribeFile(
                 handle = handle,
                 pcmPath = pcmFile.absolutePath,
@@ -183,6 +196,7 @@ class MeetingPipeline(
 
     private fun summarize(transcript: String): String {
         manager.update(PipelineState.LoadingLlama)
+        RunLog.enter(context, "loading summarization model ${settings.llamaModelName}")
         val resolved = ModelFileResolver.resolve(
             context, settings.llamaModelUri, settings.llamaModelName, ::cancelled,
         )
@@ -199,6 +213,7 @@ class MeetingPipeline(
             }
             if (cancelled()) return ""
 
+            RunLog.enter(context, "summarizing")
             val summarizer = HierarchicalSummarizer(
                 engine = LlamaEngine(handle),
                 settings = settings,

@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +50,7 @@ import com.stastyle.localsummarizer.data.models.ModelKind
 import com.stastyle.localsummarizer.data.settings.DEFAULT_MASTER_PROMPT
 import com.stastyle.localsummarizer.ui.AppViewModelProvider
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +65,7 @@ fun SettingsScreen(
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var wifiOnly by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
@@ -318,6 +321,17 @@ fun SettingsScreen(
                             runCatching { context.startActivity(viewModel.releasePageIntent()) }
                         },
                         onSaveToken = viewModel::setGithubToken,
+                    )
+                }
+            }
+
+            // Diagnostics section
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    DiagnosticsSection(
+                        onMessage = { message ->
+                            scope.launch { snackbarHostState.showSnackbar(message) }
+                        },
                     )
                 }
             }

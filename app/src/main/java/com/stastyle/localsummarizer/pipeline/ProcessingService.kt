@@ -17,6 +17,7 @@ import androidx.core.app.ServiceCompat
 import com.stastyle.localsummarizer.MainActivity
 import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.appContainer
+import com.stastyle.localsummarizer.diagnostics.RunLog
 import com.stastyle.localsummarizer.domain.PipelineState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -117,6 +118,7 @@ class ProcessingService : Service() {
                 // and leave the user staring at a crash instead of a reason.
                 withContext(NonCancellable) {
                     val failed = PipelineState.Failed(e.message ?: e.javaClass.simpleName)
+                    RunLog.finished(applicationContext, "service failed: ${failed.message}")
                     PipelineManager.update(failed)
                     runCatching { postCompletionNotification(failed, audioName) }
                     runFinished = true

@@ -15,6 +15,12 @@ object NativeLib {
     @Volatile
     private var loaded = false
 
+    // Distinct from [loaded]: the .so is in the process but the backends may
+    // have failed to register. That is exactly when the diagnostics matter, so
+    // they must still be readable.
+    @Volatile
+    private var libraryLoaded = false
+
     /**
      * ggml ships one CPU backend per ARM feature level and picks the best one
      * the device supports at runtime. It finds them by listing a directory,
@@ -26,6 +32,7 @@ object NativeLib {
         synchronized(this) {
             if (loaded) return
             System.loadLibrary("summarizer")
+            libraryLoaded = true
             val searchDir = backendDirectory(context)
             nativeLoadBackends(searchDir)
             val registered = nativeBackendCount()
@@ -40,6 +47,17 @@ object NativeLib {
     val isLoaded: Boolean get() = loaded
 
     fun backendCount(): Int = nativeBackendCount()
+
+    /** Registered backends and devices, for the in-app diagnostics report. */
+    fun backendReport(): String =
+        if (libraryLoaded) nativeBackendReport() else "native library not loaded"
+
+    /**
+     * The tail of ggml/llama/whisper's own log. A sideloaded app cannot be
+     * granted READ_LOGS, so this is the only way the user can hand over what
+     * the engines said.
+     */
+    fun engineLog(): String = if (libraryLoaded) nativeEngineLog() else ""
 
     /**
      * Normally the installer extracts the libraries and [ApplicationInfo
@@ -99,6 +117,8 @@ object NativeLib {
 
     private external fun nativeLoadBackends(nativeLibDir: String)
     private external fun nativeBackendCount(): Int
+    private external fun nativeBackendReport(): String
+    private external fun nativeEngineLog(): String
 }
 
 /**

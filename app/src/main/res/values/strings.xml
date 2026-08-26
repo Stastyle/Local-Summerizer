@@ -112,4 +112,8 @@
     <string name="app_update_token">GitHub token (optional)</string>
     <string name="app_update_token_hint">Only used to reach the private release. A fine-grained read-only token for this repository is enough.</string>
     <string name="app_update_unknown_build">unknown</string>
+    <!-- Diagnostics -->
+    <string name="diagnostics_section">Diagnostics</string>
+    <string name="diagnostics_hint">A report on the engine and this device. Useful when something fails — copy it and send it along with the description of the problem. It contains no audio, transcript or summary.</string>
+    <string name="diagnostics_run">Build report</string>
 </resources>
