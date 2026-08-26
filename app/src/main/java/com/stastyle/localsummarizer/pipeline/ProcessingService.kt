@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -90,17 +91,24 @@ class ProcessingService : Service() {
         job = scope.launch {
             val settings = appContainer().settingsRepository.current()
             val notifier = launch { observeStateForNotification() }
-            val finalState = withContext(inferenceDispatcher) {
-                MeetingPipeline(
+            // NonCancellable on purpose: the run is stopped through
+            // PipelineManager's flags, which also interrupt the native call.
+            // Coroutine cancellation would instead discard the resumption —
+            // silently skipping the completion notification exactly when the
+            // system tears the service down (the Android 15 runtime cap).
+            withContext(inferenceDispatcher + NonCancellable) {
+                val finalState = MeetingPipeline(
                     context = applicationContext,
                     settings = settings,
                     audioUri = audioUri,
                     audioName = audioName,
                 ).run()
+                postCompletionNotification(finalState, audioName)
+                // Set inside the block: a cancelled scope discards everything
+                // after it, and onDestroy must still see a finished run.
+                runFinished = true
             }
             notifier.cancel()
-            postCompletionNotification(finalState, audioName)
-            runFinished = true
             // Tied to this start command, so a start that arrived in the
             // meantime is not torn down along with this one.
             stopSelf(startId)

@@ -10,6 +10,7 @@ import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.nativebridge.LlamaBridge
 import com.stastyle.localsummarizer.nativebridge.WhisperBridge
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -82,6 +83,10 @@ class MeetingPipeline(
 
             return finish(PipelineState.Done(transcript, summary))
         } catch (e: InterruptedException) {
+            saveRecord(startedAt, transcript, "")
+            return finish(PipelineState.Cancelled)
+        } catch (e: CancellationException) {
+            // A cancelled scope is a stop, never a failure.
             saveRecord(startedAt, transcript, "")
             return finish(PipelineState.Cancelled)
         } catch (e: Exception) {

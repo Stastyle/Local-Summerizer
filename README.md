@@ -103,8 +103,26 @@ cd Local-Summerizer
 
 דרישות: JDK 21, Android SDK 35, NDK 28, CMake 3.22+.
 
-גרסת ה-release חתומה במפתח בדיקה שנמצא ב-repo (`app/release.keystore`) — הוא נועד
-לשימוש אישי בלבד ולא לפרסום בחנות.
+### מפתח החתימה
+
+גרסת ה-release חתומה במפתח שנמצא ב-repo ‏(`app/release.keystore`, סיסמה ב-`app/build.gradle.kts`).
+זה נוח — הבנייה עובדת בלי הגדרה ידנית, וכל עדכון מותקן מעל הקודם — אבל המשמעות היא
+שכל מי שיכול לקרוא את ה-repo יכול לחתום APK שאנדרואיד יקבל כ**עדכון** של האפליקציה,
+ובכך לקבל גישה לתיקיית הנתונים הפרטית שלה (התמלילים והסיכומים).
+
+כרגע ה-repo **פרטי**, ולכן החשיפה מוגבלת אליכם בלבד. **לפני שהופכים אותו לציבורי**
+כדאי להחליף למפתח שנשמר כסוד של GitHub:
+
+```bash
+keytool -genkeypair -storetype PKCS12 -keyalg RSA -keysize 4096 -validity 10000 \
+  -keystore release.keystore -alias localsummarizer
+base64 -w0 release.keystore     # לשמור כ-secret בשם ANDROID_KEYSTORE_B64
+git rm --cached app/release.keystore && echo "app/release.keystore" >> .gitignore
+```
+
+ואז להוסיף ל-workflow שלב שמשחזר את הקובץ מה-secret לפני הבנייה, ולקרוא את הסיסמאות
+מ-`System.getenv`. שימו לב: אחרי החלפת מפתח צריך להסיר ולהתקין מחדש את האפליקציה פעם
+אחת, והמפתח הישן נשאר בהיסטוריית ה-git אלא אם היא נכתבת מחדש.
 
 ## בדיקות (Tests)
 
