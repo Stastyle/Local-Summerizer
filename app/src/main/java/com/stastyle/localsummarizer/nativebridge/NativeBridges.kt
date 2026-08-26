@@ -1,19 +1,32 @@
 package com.stastyle.localsummarizer.nativebridge
 
+import android.content.Context
+
 object NativeLib {
     @Volatile
     private var loaded = false
 
-    fun ensureLoaded() {
-        if (!loaded) {
-            synchronized(this) {
-                if (!loaded) {
-                    System.loadLibrary("summarizer")
-                    loaded = true
-                }
-            }
+    /**
+     * ggml ships one CPU backend per ARM feature level and picks the best one
+     * the device supports at runtime. Its own search path is useless on
+     * Android, so the APK's native library directory is passed in explicitly.
+     */
+    fun ensureLoaded(context: Context) {
+        if (loaded) return
+        synchronized(this) {
+            if (loaded) return
+            System.loadLibrary("summarizer")
+            nativeLoadBackends(context.applicationInfo.nativeLibraryDir)
+            loaded = true
         }
     }
+
+    val isLoaded: Boolean get() = loaded
+
+    fun backendCount(): Int = nativeBackendCount()
+
+    private external fun nativeLoadBackends(nativeLibDir: String)
+    private external fun nativeBackendCount(): Int
 }
 
 /**
@@ -27,8 +40,8 @@ object WhisperBridge {
         fun onSegment(text: String)
     }
 
-    fun load(modelPath: String): Long {
-        NativeLib.ensureLoaded()
+    fun load(context: Context, modelPath: String): Long {
+        NativeLib.ensureLoaded(context)
         return nativeInit(modelPath)
     }
 
@@ -42,8 +55,9 @@ object WhisperBridge {
         listener: Listener? = null,
     ): String = nativeTranscribeFile(handle, pcmPath, language, threads, translate, listener)
 
+    /** Safe to call before the library is loaded; then there is nothing to stop. */
     fun cancel() {
-        NativeLib.ensureLoaded()
+        if (!NativeLib.isLoaded) return
         nativeCancel()
     }
 
@@ -75,8 +89,8 @@ object LlamaBridge {
         fun onToken(piece: String): Boolean
     }
 
-    fun load(modelPath: String, contextSize: Int, threads: Int): Long {
-        NativeLib.ensureLoaded()
+    fun load(context: Context, modelPath: String, contextSize: Int, threads: Int): Long {
+        NativeLib.ensureLoaded(context)
         return nativeInit(modelPath, contextSize, threads)
     }
 
@@ -91,8 +105,9 @@ object LlamaBridge {
         listener: TokenListener? = null,
     ): String = nativeGenerate(handle, prompt, maxTokens, temperature, seed, listener)
 
+    /** Safe to call before the library is loaded; then there is nothing to stop. */
     fun cancel() {
-        NativeLib.ensureLoaded()
+        if (!NativeLib.isLoaded) return
         nativeCancel()
     }
 

@@ -24,7 +24,12 @@ android {
         }
         externalNativeBuild {
             cmake {
-                arguments += listOf("-DANDROID_STL=c++_static")
+                // c++_shared is required once more than one .so is produced,
+                // and Release keeps -O3 in the debug variant too.
+                arguments += listOf(
+                    "-DANDROID_STL=c++_shared",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                )
                 if (System.getenv("CCACHE_DIR") != null || System.getenv("CI") != null) {
                     arguments += listOf(
                         "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
@@ -52,15 +57,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            // whisper/llama are unusably slow without optimizations, even for
-            // debug APKs — force an optimized native build in every variant.
-            externalNativeBuild {
-                cmake {
-                    arguments += listOf("-DCMAKE_BUILD_TYPE=Release")
-                }
-            }
-        }
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release")

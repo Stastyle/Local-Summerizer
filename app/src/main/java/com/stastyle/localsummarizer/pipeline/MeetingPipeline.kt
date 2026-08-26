@@ -10,6 +10,8 @@ import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.nativebridge.LlamaBridge
 import com.stastyle.localsummarizer.nativebridge.WhisperBridge
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -68,7 +70,11 @@ class MeetingPipeline(
                 whisperModelName = settings.whisperModelName,
                 llamaModelName = settings.llamaModelName,
             )
-            runCatching { context.appContainer().historyRepository.save(record) }
+            // The service may be stopping (user cancel, Android 15 FGS cap);
+            // a finished result must still reach History.
+            withContext(NonCancellable) {
+                runCatching { context.appContainer().historyRepository.save(record) }
+            }
 
             return finish(PipelineState.Done(transcript, summary))
         } catch (e: InterruptedException) {
@@ -97,7 +103,7 @@ class MeetingPipeline(
         )
         var handle = 0L
         try {
-            handle = WhisperBridge.load(resolved.path)
+            handle = WhisperBridge.load(context, resolved.path)
             if (handle == 0L) {
                 throw IllegalStateException(context.getString(R.string.error_whisper_load))
             }
@@ -146,6 +152,7 @@ class MeetingPipeline(
         var handle = 0L
         try {
             handle = LlamaBridge.load(
+                context = context,
                 modelPath = resolved.path,
                 contextSize = settings.contextSize,
                 threads = effectiveThreads(),

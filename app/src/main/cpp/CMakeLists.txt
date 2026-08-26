@@ -6,11 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+# Shared libraries are required by ggml's runtime CPU dispatch below.
+set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 
-# Inference is unusably slow without optimizations, so a debug APK must still
-# get optimized native code no matter which CMAKE_BUILD_TYPE the Android
-# Gradle plugin picks for the variant.
+# Inference is unusably slow without optimizations, so every variant must get
+# optimized native code no matter which CMAKE_BUILD_TYPE ends up selected.
 set(CMAKE_C_FLAGS_DEBUG "-O3 -DNDEBUG" CACHE STRING "" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DNDEBUG" CACHE STRING "" FORCE)
 
@@ -18,9 +18,13 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O3 -DNDEBUG" CACHE STRING "" FORCE)
 # its own copy when the target already exists.
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
-if (ANDROID)
-    set(GGML_CPU_ARM_ARCH "armv8.4-a+dotprod+fp16" CACHE STRING "")
-endif()
+
+# Build one CPU backend per ARM feature level (baseline armv8.0 through
+# armv8.6 with dotprod/fp16/i8mm) and let ggml dlopen the best one the device
+# actually supports. A single hard-coded -march would either give up the fast
+# kernels or SIGILL on older arm64 hardware.
+set(GGML_BACKEND_DL ON CACHE BOOL "" FORCE)
+set(GGML_CPU_ALL_VARIANTS ON CACHE BOOL "" FORCE)
 
 set(LLAMA_BUILD_COMMON OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -42,6 +46,7 @@ add_subdirectory(whisper.cpp)
 
 add_library(summarizer SHARED
     jni_utils.cpp
+    backend_loader.cpp
     whisper_bridge.cpp
     llama_bridge.cpp
 )

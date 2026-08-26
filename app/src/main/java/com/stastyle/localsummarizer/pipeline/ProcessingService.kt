@@ -25,6 +25,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -103,10 +106,13 @@ class ProcessingService : Service() {
     }
 
     private suspend fun observeStateForNotification() {
-        PipelineManager.state.collect { state ->
-            if (!state.isRunning) return@collect
-            updateNotification(stageLabel(state))
-        }
+        // The state flow ticks once per generated token; only re-post when the
+        // rendered label actually changes, or the system rate-limits us.
+        PipelineManager.state
+            .filter { it.isRunning }
+            .map(::stageLabel)
+            .distinctUntilChanged()
+            .collect(::updateNotification)
     }
 
     private fun stageLabel(state: PipelineState): String = when (state) {
