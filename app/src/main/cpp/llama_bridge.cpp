@@ -97,7 +97,9 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeInit(
         ctx,
         llama_model_get_vocab(model),
         (int) llama_n_ctx(ctx),
-        n_batch,
+        // llama clamps the batch to the context for causal models, and
+        // exceeding the effective value aborts inside llama_decode.
+        (int) llama_n_batch(ctx),
     };
     return (jlong) (intptr_t) handle;
 }
@@ -195,10 +197,24 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeGenerate(
         if (llama_vocab_is_eog(vocab, token)) break;
 
         char buf[256];
-        const int32_t len = llama_token_to_piece(vocab, token, buf, sizeof(buf), 0, false);
-        if (len > 0) {
+        int32_t len = llama_token_to_piece(vocab, token, buf, sizeof(buf), 0, false);
+        if (len < 0) {
+            // Rare tokens can exceed the stack buffer; retry with the size the
+            // call asked for rather than dropping the piece.
+            std::string large((size_t) -len, '\0');
+            len = llama_token_to_piece(vocab, token, large.data(), -len, 0, false);
+            if (len > 0) pending.append(large.data(), (size_t) len);
+        } else if (len > 0) {
             pending.append(buf, (size_t) len);
-            const size_t valid = utf8_valid_prefix_len(pending.data(), pending.size());
+        }
+        if (len > 0) {
+            size_t valid = utf8_valid_prefix_len(pending.data(), pending.size());
+            if (valid == 0 && pending.size() >= 4) {
+                // A byte that can never start a valid sequence would otherwise
+                // block the buffer forever and silently truncate the output.
+                pending.replace(0, 1, "\xEF\xBF\xBD");
+                valid = utf8_valid_prefix_len(pending.data(), pending.size());
+            }
             if (valid > 0) {
                 const std::string piece = pending.substr(0, valid);
                 pending.erase(0, valid);
@@ -219,9 +235,9 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeGenerate(
             }
         }
 
-        llama_batch batch = llama_batch_get_one(&token, 1);
-        if (llama_decode(ctx, batch) != 0) {
-            break;
+        if (i + 1 < n_gen) {
+            llama_batch batch = llama_batch_get_one(&token, 1);
+            if (llama_decode(ctx, batch) != 0) break;
         }
     }
 

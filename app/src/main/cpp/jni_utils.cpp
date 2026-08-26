@@ -132,8 +132,12 @@ jstring utf8_to_jstring(JNIEnv * env, const std::string & str) {
 }
 
 void throw_runtime_exception(JNIEnv * env, const std::string & message) {
+    // A pending exception (e.g. OutOfMemoryError) is the more informative one
+    // and ThrowNew would be a silent no-op anyway.
+    if (env->ExceptionCheck()) return;
     jclass cls = env->FindClass("java/lang/RuntimeException");
     if (cls != nullptr) {
         env->ThrowNew(cls, message.c_str());
+        env->DeleteLocalRef(cls);
     }
 }

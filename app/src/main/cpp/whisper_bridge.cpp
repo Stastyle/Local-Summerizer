@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <string>
@@ -50,7 +51,7 @@ void new_segment_callback(whisper_context * ctx, whisper_state * /*state*/, int 
     auto * cb = (CallbackContext *) user_data;
     if (cb == nullptr || cb->failed || cb->listener == nullptr) return;
     const int n_segments = whisper_full_n_segments(ctx);
-    for (int i = n_segments - n_new; i < n_segments; ++i) {
+    for (int i = std::max(0, n_segments - n_new); i < n_segments; ++i) {
         const char * text = whisper_full_get_segment_text(ctx, i);
         if (text == nullptr) continue;
         jstring jtext = utf8_to_jstring(cb->env, text, strlen(text));

@@ -18,6 +18,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,17 +55,32 @@ jobs:
       - name: Restore ccache
         uses: actions/cache@v4
         with:
-          path: ~/.ccache
+          path: ${{ github.workspace }}/.ccache
           key: ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', '.gitmodules') }}-${{ github.sha }}
           restore-keys: |
             ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', '.gitmodules') }}-
             ccache-${{ runner.os }}-
 
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
       - name: Build APKs
-        env:
-          CCACHE_DIR: ~/.ccache
-          CCACHE_MAXSIZE: 2G
         run: ./gradlew assembleDebug assembleRelease --stacktrace
+
+      # ggml only dispatches at runtime if every CPU-variant .so actually made
+      # it into the APK, so fail the build rather than ship a silent fallback.
+      - name: Verify packaged native libraries
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          echo "Native libraries in $APK:"
+          unzip -l "$APK" | grep '\.so$' | awk '{print $4, $1}'
+          for required in libsummarizer.so libggml-base.so libllama.so libwhisper.so libc++_shared.so; do
+            unzip -l "$APK" | grep -q "lib/arm64-v8a/$required" \
+              || { echo "::error::missing $required"; exit 1; }
+          done
+          variants=$(unzip -l "$APK" | grep -c 'libggml-cpu-.*\.so' || true)
+          echo "ggml CPU variants packaged: $variants"
+          [ "$variants" -ge 2 ] || { echo "::error::runtime CPU dispatch has no variants"; exit 1; }
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
