@@ -113,6 +113,8 @@
     <string name="app_update_token">טוקן GitHub (אופציונלי)</string>
     <string name="app_update_token_hint">משמש רק כדי להגיע למאגר הפרטי. מספיק טוקן קריאה בלבד למאגר הזה.</string>
     <string name="app_update_unknown_build">לא ידוע</string>
+    <string name="stage_elapsed">חלפו %1$s</string>
+    <string name="stage_elapsed_rate">חלפו %1$s · פי %2$s מזמן אמת · נותרו בערך %3$s</string>
     <!-- Transcription accuracy -->
     <string name="settings_transcription_section">דיוק התמלול</string>
     <string name="settings_glossary">מילון מונחים / הקשר</string>

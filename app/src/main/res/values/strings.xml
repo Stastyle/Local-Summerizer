@@ -113,6 +113,8 @@
     <string name="app_update_token">GitHub token (optional)</string>
     <string name="app_update_token_hint">Only used to reach the private release. A fine-grained read-only token for this repository is enough.</string>
     <string name="app_update_unknown_build">unknown</string>
+    <string name="stage_elapsed">%1$s elapsed</string>
+    <string name="stage_elapsed_rate">%1$s elapsed · %2$sx realtime · about %3$s left</string>
     <!-- Transcription accuracy -->
     <string name="settings_transcription_section">Transcription accuracy</string>
     <string name="settings_glossary">Glossary / context</string>

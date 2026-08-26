@@ -23,12 +23,31 @@ object PipelineManager {
     var cancelRequested: Boolean = false
         private set
 
+    /**
+     * When the current run started, or 0. Whisper reports progress once per
+     * 30-second window and reports 0% before decoding the first one, so on a
+     * slow model the percentage can sit at zero for many minutes. An elapsed
+     * clock is what tells the user the difference between working and hung.
+     */
+    @Volatile
+    var runStartedAtMs: Long = 0L
+        private set
+
+    /** Seconds of audio in the current run, or 0 before decoding finishes. */
+    @Volatile
+    var audioSeconds: Double = 0.0
+
+    fun elapsedMs(): Long =
+        if (runStartedAtMs == 0L) 0L else System.currentTimeMillis() - runStartedAtMs
+
     fun update(state: PipelineState) {
         _state.value = state
     }
 
     fun reset() {
         cancelRequested = false
+        runStartedAtMs = 0L
+        audioSeconds = 0.0
         _state.value = PipelineState.Idle
     }
 
@@ -48,6 +67,8 @@ object PipelineManager {
         if (!settings.hasWhisperModel) return context.getString(R.string.error_no_whisper_model)
         if (!settings.hasLlamaModel) return context.getString(R.string.error_no_llama_model)
         cancelRequested = false
+        runStartedAtMs = System.currentTimeMillis()
+        audioSeconds = 0.0
         // The native flags live for the process, not the run.
         runCatching { WhisperBridge.resetCancel() }
         runCatching { LlamaBridge.resetCancel() }

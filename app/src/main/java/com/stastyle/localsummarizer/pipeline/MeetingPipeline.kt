@@ -52,6 +52,10 @@ class MeetingPipeline(
                 isCancelled = ::cancelled,
             )
             if (cancelled()) return finish(PipelineState.Cancelled)
+            // Float32 mono at 16kHz: four bytes per sample. Drives the
+            // realtime-factor readout, which is how an over-heavy model
+            // becomes visible before the run finishes.
+            manager.audioSeconds = pcmFile.length() / 4.0 / SAMPLE_RATE
 
             // 2. whisper: load -> transcribe -> free
             transcript = transcribe(pcmFile)
@@ -127,11 +131,20 @@ class MeetingPipeline(
         }
     }
 
+    /** " (0.05x realtime)" once both numbers are known, else empty. */
+    private val speedSuffix: String
+        get() {
+            val audio = manager.audioSeconds
+            val elapsed = manager.elapsedMs() / 1000.0
+            if (audio <= 0.0 || elapsed <= 0.0) return ""
+            return " (%.2fx realtime, %.0fs audio in %.0fs)".format(audio / elapsed, audio, elapsed)
+        }
+
     private fun finish(state: PipelineState): PipelineState {
         RunLog.finished(
             context,
             when (state) {
-                is PipelineState.Done -> "completed"
+                is PipelineState.Done -> "completed$speedSuffix"
                 is PipelineState.Failed -> "failed: ${state.message}"
                 PipelineState.Cancelled -> "cancelled"
                 else -> state.javaClass.simpleName
@@ -236,3 +249,5 @@ class MeetingPipeline(
         return (cores - 2).coerceIn(2, 8)
     }
 }
+
+private const val SAMPLE_RATE = 16000.0

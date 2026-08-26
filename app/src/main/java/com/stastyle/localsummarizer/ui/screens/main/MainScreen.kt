@@ -59,6 +59,9 @@ import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.export.Exporter
 import com.stastyle.localsummarizer.ui.AppViewModelProvider
+import com.stastyle.localsummarizer.pipeline.PipelineManager
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.mutableLongStateOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -236,6 +239,18 @@ private fun PipelineProgressSection(state: PipelineState) {
                 is PipelineState.Failed -> stringResource(R.string.error_prefix, state.message)
                 PipelineState.Idle -> ""
             }
+            // Whisper reports progress once per 30-second window, and reports
+            // 0% before decoding the first one. On a large model that window
+            // can take many minutes, during which the only honest signal that
+            // anything is happening is a clock.
+            var elapsedMs by remember { mutableLongStateOf(0L) }
+            LaunchedEffect(state.isRunning) {
+                while (state.isRunning) {
+                    elapsedMs = PipelineManager.elapsedMs()
+                    delay(1000)
+                }
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -263,6 +278,13 @@ private fun PipelineProgressSection(state: PipelineState) {
                 is PipelineState.LoadingLlama, is PipelineState.Summarizing ->
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 else -> Unit
+            }
+            if (state.isRunning && elapsedMs > 0L) {
+                Text(
+                    elapsedLabel(elapsedMs, state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
             }
         }
     }
@@ -346,4 +368,30 @@ private fun ResultsSection(
             }
         }
     }
+}
+
+/**
+ * "4:12 elapsed", and once whisper has finished a window, how fast the run is
+ * going against the length of the recording. A model eight times too heavy for
+ * the phone shows up here as "0.05x realtime" long before it shows up as a
+ * finished transcript.
+ */
+@Composable
+private fun elapsedLabel(elapsedMs: Long, state: PipelineState): String {
+    val elapsed = elapsedMs / 1000
+    val clock = "%d:%02d".format(elapsed / 60, elapsed % 60)
+    val audioSeconds = PipelineManager.audioSeconds
+    val percent = (state as? PipelineState.Transcribing)?.percent ?: 0
+    if (percent <= 0 || audioSeconds <= 0.0 || elapsed <= 0) {
+        return stringResource(R.string.stage_elapsed, clock)
+    }
+    val transcribedSeconds = audioSeconds * percent / 100.0
+    val rate = transcribedSeconds / elapsed
+    val remaining = ((audioSeconds - transcribedSeconds) / rate).toLong().coerceAtLeast(0)
+    return stringResource(
+        R.string.stage_elapsed_rate,
+        clock,
+        "%.2f".format(rate),
+        "%d:%02d".format(remaining / 60, remaining % 60),
+    )
 }

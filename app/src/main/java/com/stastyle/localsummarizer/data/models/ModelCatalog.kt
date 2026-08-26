@@ -30,8 +30,8 @@ object ModelCatalog {
             url = "https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml/resolve/main/" +
                 "ggml-model.bin",
             approxBytes = 1620 * MB,
-            note = "מכוונן לעברית — הבחירה המומלצת. שפת התמלול חייבת להיות עברית, " +
-                "לא \"זיהוי אוטומטי\"",
+            note = "מכוונן לעברית והמהיר מבין השניים — התחילו כאן. שפת התמלול חייבת " +
+                "להיות עברית, לא \"זיהוי אוטומטי\"",
         ),
         CatalogModel(
             id = "ivrit-large-v3",
@@ -41,7 +41,7 @@ object ModelCatalog {
             url = "https://huggingface.co/ivrit-ai/whisper-large-v3-ggml/resolve/main/" +
                 "ggml-model.bin",
             approxBytes = 3095 * MB,
-            note = "מדויק יותר מה-turbo אך איטי ממנו פי כמה — 32 שכבות מפענח במקום 4",
+            note = "לא מומלץ לטלפון: 32 שכבות מפענח מול 4 ב-turbo, כלומר איטי פי ~8. שעת הקלטה עלולה לקחת יום. בחרו בזה רק אם turbo לא מספיק מדויק ואתם מוכנים לחכות",
         ),
         CatalogModel(
             id = "whisper-large-v3-turbo",
