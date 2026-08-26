@@ -64,6 +64,14 @@ jobs:
             ccache-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/CMakeLists.txt', '.gitmodules') }}-
             ccache-${{ runner.os }}-
 
+      # Seconds, and it catches the resource mistakes that otherwise fail
+      # inside aapt with a message that does not name the cause.
+      - name: Check string resources
+        run: |
+          python3 scripts/check_strings.py \
+            app/src/main/res/values/strings.xml \
+            app/src/main/res/values-iw/strings.xml
+
       # Runs in about a minute without touching the NDK build, so a broken
       # test fails the run before the nine-minute native compile.
       - name: Unit tests

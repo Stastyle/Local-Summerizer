@@ -122,7 +122,7 @@
     <string name="settings_carry_context">Carry context between segments</string>
     <string name="settings_carry_context_hint">Bounds the carried-over text to 128 tokens rather than switching it off. Keeps names and terms consistent. Turn it off if the transcript starts repeating a sentence.</string>
     <string name="settings_hebrew_only">Hebrew-only summary</string>
-    <string name="settings_hebrew_only_hint">Puts every non-Hebrew token out of the model's reach, so it cannot drift into English or Chinese mid-sentence. Digits, punctuation and single letters (F-16, GPS) still work. Turn off for a meeting held in another language.</string>
+    <string name="settings_hebrew_only_hint">Puts every non-Hebrew token beyond the model\'s reach, so it cannot drift into English or Chinese mid-sentence. Digits, punctuation and single letters (F-16, GPS) still work. Turn off for a meeting held in another language.</string>
     <!-- Diagnostics -->
     <string name="diagnostics_section">Diagnostics</string>
     <string name="diagnostics_hint">A report on the engine and this device. Useful when something fails — copy it and send it along with the description of the problem. It contains no audio, transcript or summary.</string>
