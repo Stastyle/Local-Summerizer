@@ -29,7 +29,7 @@ sealed interface DownloadStatus {
     data class Failed(val message: String) : DownloadStatus
 }
 
-/** What a HEAD request told us about the remote file. */
+/** What the probe learned about the remote file. */
 data class RemoteInfo(val sizeBytes: Long, val tag: String)
 
 /**
@@ -55,7 +55,14 @@ class ModelDownloader(private val context: Context) {
             var url = URL(model.url)
             repeat(MAX_REDIRECTS) {
                 val connection = (url.openConnection() as HttpURLConnection).apply {
-                    requestMethod = "HEAD"
+                    // A one-byte ranged GET rather than HEAD. GitHub release
+                    // assets redirect to a signed URL that answers HEAD with
+                    // 401 while serving GET perfectly well, so a HEAD probe
+                    // rejects every model hosted there. The 206 response
+                    // carries the full length in Content-Range, so this learns
+                    // strictly more than HEAD did and costs one byte.
+                    requestMethod = "GET"
+                    setRequestProperty("Range", "bytes=0-0")
                     // HuggingFace always redirects to a CDN, and following it by
                     // hand is the only way to read the final headers reliably.
                     instanceFollowRedirects = false
@@ -66,8 +73,13 @@ class ModelDownloader(private val context: Context) {
                     val code = connection.responseCode
                     when {
                         code in 200..299 -> {
-                            val size = connection.getHeaderField("Content-Length")
-                                ?.toLongOrNull() ?: -1L
+                            // With 206 the Content-Length is the one byte
+                            // asked for; the real size is after the slash in
+                            // "bytes 0-0/574041195".
+                            val size = connection.getHeaderField("Content-Range")
+                                ?.substringAfterLast('/')?.toLongOrNull()
+                                ?: connection.getHeaderField("Content-Length")
+                                    ?.toLongOrNull() ?: -1L
                             val tag = (
                                 connection.getHeaderField("x-linked-etag")
                                     ?: connection.getHeaderField("ETag")
@@ -81,6 +93,9 @@ class ModelDownloader(private val context: Context) {
                                 ?: throw IOException("Redirect without a target")
                             url = URL(url, location)
                         }
+                        // 416 means the server ignored the range but the
+                        // file is there; treat it as reachable.
+                        code == 416 -> return@runCatching RemoteInfo(-1L, "")
                         code == 404 -> throw IOException(
                             "File not found (404) at ${model.url} — " +
                                 "the catalog entry is probably out of date.",
