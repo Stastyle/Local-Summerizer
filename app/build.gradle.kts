@@ -8,6 +8,11 @@ val gitSha: String = runCatching {
     }.standardOutput.asText.get().trim()
 }.getOrDefault("")
 
+val releaseKeystore: java.io.File? = System.getenv("ANDROID_KEYSTORE_PATH")
+    ?.takeIf { it.isNotBlank() }
+    ?.let(::File)
+    ?.takeIf { it.exists() }
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -67,12 +72,19 @@ android {
         }
     }
 
+    // The release key is reconstructed by CI from a repository secret and is
+    // deliberately absent from the repository: a committed key lets anyone
+    // sign an APK that Android accepts as an update of this app, inheriting
+    // its private data. Without the key the release APK is left unsigned
+    // rather than signed with something forgeable.
     signingConfigs {
-        create("release") {
-            storeFile = file("release.keystore")
-            storePassword = "localsummarizer"
-            keyAlias = "localsummarizer"
-            keyPassword = "localsummarizer"
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "localsummarizer"
+                keyPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
         }
     }
 
@@ -86,7 +98,7 @@ android {
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

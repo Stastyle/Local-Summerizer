@@ -69,10 +69,30 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      # The signing key lives in a repository secret, never in the repository.
+      # Without it the build still runs and is verified, but nothing is
+      # published — an unsigned APK cannot be installed anyway.
+      - name: Restore signing key
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Signing key restored."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANDROID_KEYSTORE_B64 is not set. The release APK will be unsigned and will not be published."
+          fi
+
       # Release only: the native build is four ARM CPU variants, and AGP
       # compiles them separately per APK variant, so building the debug APK
       # too would double a build that already dominates the run.
       - name: Build APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.signing.outputs.available == 'true' && format('{0}/release.keystore', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
       # ggml only dispatches at runtime if every CPU-variant .so actually made
@@ -90,6 +110,15 @@ jobs:
           echo "ggml CPU variants packaged: $variants"
           [ "$variants" -ge 2 ] || { echo "::error::runtime CPU dispatch has no variants"; exit 1; }
 
+      # Publishing an APK that turns out to be unsigned would strand the
+      # in-app updater, so confirm the signature before it leaves the runner.
+      - name: Verify APK signature
+        if: steps.signing.outputs.available == 'true'
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -1)
+          "$APKSIGNER" verify --print-certs \
+            app/build/outputs/apk/release/app-release.apk
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -99,7 +128,7 @@ jobs:
       # Uploading into an existing release keeps the download URL valid even if
       # a run is cancelled midway; delete-then-recreate could leave the page 404.
       - name: Update rolling release
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.signing.outputs.available == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
