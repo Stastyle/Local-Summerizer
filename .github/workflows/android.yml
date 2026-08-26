@@ -117,3 +117,6 @@ jobs:
           gh release edit apk-latest --notes-file release-notes.md
           gh release upload apk-latest --clobber \
             app/build/outputs/apk/release/app-release.apk
+          # Earlier runs published a debug APK too; drop it so the page offers
+          # exactly one file to install.
+          gh release delete-asset apk-latest app-debug.apk -y 2>/dev/null || true
