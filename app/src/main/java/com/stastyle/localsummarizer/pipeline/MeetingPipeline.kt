@@ -218,7 +218,7 @@ class MeetingPipeline(
 
             RunLog.enter(context, "summarizing")
             val summarizer = HierarchicalSummarizer(
-                engine = LlamaEngine(handle),
+                engine = LlamaEngine(handle, hebrewOnly = settings.hebrewOnlyOutput),
                 settings = settings,
                 onState = manager::update,
                 isCancelled = ::cancelled,

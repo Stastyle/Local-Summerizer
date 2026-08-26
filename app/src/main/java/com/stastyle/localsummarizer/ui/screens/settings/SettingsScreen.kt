@@ -323,6 +323,27 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setTranscriptionContext,
                         )
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.settings_hebrew_only),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                stringResource(R.string.settings_hebrew_only_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                        Switch(
+                            checked = settings.hebrewOnlyOutput,
+                            onCheckedChange = viewModel::setHebrewOnlyOutput,
+                        )
+                    }
                 }
             }
 

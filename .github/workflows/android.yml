@@ -69,6 +69,16 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      # This predicate gates which tokens the summarizer may emit. Rejecting
+      # Hebrew pieces would silently suppress the entire output, so it is
+      # tested on the host compiler rather than trusted.
+      - name: Hebrew output filter test
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -I app/src/main/cpp -o /tmp/test_hebrew_filter \
+            scripts/test_hebrew_filter.cpp app/src/main/cpp/hebrew_filter.cpp
+          /tmp/test_hebrew_filter
+
       # The signing key lives in a repository secret, never in the repository.
       # Without it the build still runs and is verified, but nothing is
       # published — an unsigned APK cannot be installed anyway.

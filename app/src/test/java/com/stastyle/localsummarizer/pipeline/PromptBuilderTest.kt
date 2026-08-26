@@ -1,5 +1,6 @@
 package com.stastyle.localsummarizer.pipeline
 
+import com.stastyle.localsummarizer.data.settings.DEFAULT_MASTER_PROMPT
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -21,7 +22,29 @@ class PromptBuilderTest {
     fun `transcript is introduced in Hebrew`() {
         val content = PromptBuilder.transcriptUserContent("שלום")
         assertTrue(content.startsWith("להלן תמליל הישיבה:"))
-        assertTrue(content.endsWith("שלום"))
+        assertTrue(content.contains("שלום"))
+    }
+
+    @Test
+    fun `the language rule is the last thing before the model answers`() {
+        // A rule stated only in the system prompt sits behind the whole
+        // transcript by the time the first token is generated. Both user
+        // turns repeat it in the slot closest to that token.
+        assertTrue(PromptBuilder.transcriptUserContent("שלום").endsWith("ענה בעברית בלבד."))
+        assertTrue(
+            PromptBuilder.chunkUserContent("טקסט", index = 0, total = 2)
+                .endsWith("ענה בעברית בלבד."),
+        )
+    }
+
+    @Test
+    fun `both system prompts open and close with the language rule`() {
+        // Position matters more than wording: first line sets the frame,
+        // last line is what the model saw most recently.
+        for (prompt in listOf(DEFAULT_MASTER_PROMPT, PromptBuilder.CHUNK_SYSTEM_PROMPT)) {
+            assertTrue(prompt.startsWith("שפת הפלט: עברית בלבד."))
+            assertTrue(prompt.trimEnd().endsWith("בספרות או בסימני פיסוק."))
+        }
     }
 
     @Test

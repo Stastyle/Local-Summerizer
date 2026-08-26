@@ -182,16 +182,22 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
     // n_max_text_ctx, not no_context, is what actually gates cross-window
     // conditioning here: no_context is read once before the window loop, and
     // the rolling prompt is rebuilt after every window regardless, so with one
-    // whisper_full call per file it does nothing. 0 disables conditioning;
-    // above 0 it bounds how much prior text is carried. 128 leaves room for
-    // both the glossary and a useful amount of context, and a bounded window
-    // stops one bad decode from seeding a runaway repetition in the next.
-    wparams.n_max_text_ctx   = use_context == JNI_TRUE ? 128 : 0;
-
-    // Whisper's repetition-loop detector, over the entropy of the last 32
-    // tokens. Hebrew tokenizes into more distinct pieces than English, so a
-    // repeated Hebrew phrase scores higher and slips under the 2.4 default.
-    wparams.entropy_thold    = 2.6f;
+    // whisper_full call per file it does nothing. 128 leaves room for both the
+    // glossary and a useful amount of context, and a bounded window stops one
+    // bad decode from seeding a runaway repetition in the next.
+    //
+    // Zero is NOT the way to switch context off: the glossary is applied from
+    // inside the same `n_max_text_ctx > 0` branch, so zero would silently
+    // discard it too. Budgeting exactly the glossary plus its marker leaves
+    // no room for rolling context while keeping the glossary itself.
+    if (use_context == JNI_TRUE) {
+        wparams.n_max_text_ctx = 128;
+    } else {
+        const int glossary_tokens = prompt.empty()
+                ? 0
+                : -whisper_tokenize(ctx, prompt.c_str(), nullptr, 0);
+        wparams.n_max_text_ctx = std::max(1, glossary_tokens + 1);
+    }
 
     if (!prompt.empty()) {
         // A glossary of the terms this recording actually uses. carry_ means

@@ -296,6 +296,10 @@ class SettingsViewModel(private val app: LocalSummarizerApp) : AndroidViewModel(
         viewModelScope.launch { repository.setBeamSize(size) }
     }
 
+    fun setHebrewOnlyOutput(enabled: Boolean) {
+        viewModelScope.launch { repository.setHebrewOnlyOutput(enabled) }
+    }
+
     fun setTranscriptionContext(enabled: Boolean) {
         viewModelScope.launch { repository.setTranscriptionContext(enabled) }
     }

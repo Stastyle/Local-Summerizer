@@ -9,6 +9,7 @@
 
 #include "ggml-backend.h"
 #include "llama.h"
+#include "hebrew_filter.h"
 #include "jni_utils.h"
 
 #ifdef __ANDROID__
@@ -36,6 +37,58 @@ struct LlamaHandle {
 void ensure_backend_initialized() {
     static std::once_flag flag;
     std::call_once(flag, [] { llama_backend_init(); });
+}
+
+/**
+ * Tokens whose text is not Hebrew, digits, punctuation or whitespace, biased
+ * far enough down that they cannot be sampled.
+ *
+ * Threshold tuning only makes a foreign token unlikely; a small multilingual
+ * model asked for Hebrew still leaks "queens" and "最少" because those tokens
+ * sit a nat or two below the top and a nat or two is not far. This closes the
+ * door instead of narrowing it.
+ *
+ * Deliberately an allow-list. A deny-list of the scripts actually observed
+ * would leave Arabic, Greek, Cyrillic and accented Latin open, and Arabic is
+ * the likeliest neighbour for a Hebrew-output model to wander into.
+ */
+std::vector<llama_logit_bias> hebrew_only_bias(const llama_vocab * vocab) {
+    // Finite, never -INFINITY: if some position has no allowed candidate at
+    // all, the distribution should degrade rather than become undefined.
+    constexpr float kSuppress = -12.0f;
+    std::vector<llama_logit_bias> biases;
+    const int32_t n_vocab = llama_vocab_n_tokens(vocab);
+    biases.reserve((size_t) n_vocab / 2);
+
+    std::string piece;
+    for (llama_token token = 0; token < n_vocab; ++token) {
+        // Suppressing <|im_end|> would stop generation from ever terminating,
+        // and byte-fallback tokens are how Hebrew itself gets spelled when the
+        // vocabulary has no whole-word entry.
+        if (llama_vocab_is_eog(vocab, token)) continue;
+        const llama_token_attr attr = llama_vocab_get_attr(vocab, token);
+        if (attr & (LLAMA_TOKEN_ATTR_CONTROL | LLAMA_TOKEN_ATTR_USER_DEFINED |
+                    LLAMA_TOKEN_ATTR_UNUSED | LLAMA_TOKEN_ATTR_BYTE)) {
+            continue;
+        }
+
+        piece.resize(256);
+        int32_t len = llama_token_to_piece(vocab, token, piece.data(),
+                                           (int32_t) piece.size(), 0, true);
+        if (len < 0) {
+            piece.resize((size_t) -len);
+            len = llama_token_to_piece(vocab, token, piece.data(),
+                                       (int32_t) piece.size(), 0, true);
+        }
+        if (len <= 0) continue;
+        const std::string text(piece.data(), (size_t) len);
+        // An undecodable piece is left alone rather than guessed at.
+        if (utf8_valid_prefix_len(text.data(), text.size()) != text.size()) continue;
+        if (!is_hebrew_safe(text)) {
+            biases.push_back(llama_logit_bias{ token, kSuppress });
+        }
+    }
+    return biases;
 }
 
 bool abort_callback(void * /*user_data*/) {
@@ -125,7 +178,8 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeTokenCount(
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeGenerate(
         JNIEnv * env, jobject /*thiz*/, jlong handle_ptr, jstring prompt,
-        jint max_tokens, jfloat temperature, jint seed, jobject listener) {
+        jint max_tokens, jfloat temperature, jint seed, jboolean hebrew_only,
+        jobject listener) {
     auto * handle = (LlamaHandle *) (intptr_t) handle_ptr;
     if (handle == nullptr) {
         throw_runtime_exception(env, "llama context is not initialized");
@@ -183,20 +237,40 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeGenerate(
     }
 
     llama_sampler * sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    // A light repetition penalty on both paths: summaries of a repetitive
-    // meeting are where a small model starts looping a sentence.
-    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(
-            llama_vocab_n_tokens(vocab), /*penalty_last_n=*/256,
-            /*penalty_repeat=*/1.05f, /*penalty_freq=*/0.0f, /*penalty_present=*/0.0f));
+
+    // First in the chain on purpose: logit_bias has a fast path that indexes
+    // the candidate array directly, which is only valid while that array is
+    // still in vocabulary order. Behind top_k it degrades to a nested scan.
+    if (hebrew_only) {
+        const std::vector<llama_logit_bias> biases = hebrew_only_bias(vocab);
+        LOGI("hebrew-only output: suppressing %zu of %d tokens",
+             biases.size(), llama_vocab_n_tokens(vocab));
+        llama_sampler_chain_add(sampler, llama_sampler_init_logit_bias(
+                llama_vocab_n_tokens(vocab), (int32_t) biases.size(), biases.data()));
+    }
+
+    // top_k first so DRY scans 40 candidates rather than the whole vocabulary.
+    // It does not change the argmax, so the greedy path stays greedy.
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+
+    // DRY rather than a repetition penalty. The penalty formulation is
+    // multiplicative on the logit, so it scales with confidence: it shaves the
+    // recurring Hebrew function words that hold the model in Hebrew — ה, ו,
+    // של, את — while leaving unused foreign tokens untouched. DRY penalises
+    // repeated *sequences* instead. allowed_length 6 rather than the usual 2
+    // because Hebrew fragments into three or four tokens per word, so a
+    // legitimately repeated term is already six to eight tokens long.
+    llama_sampler_chain_add(sampler, llama_sampler_init_dry(
+            vocab, /*dry_multiplier=*/0.8f, /*dry_base=*/1.75f,
+            /*dry_allowed_length=*/6, /*dry_penalty_last_n=*/1024,
+            /*seq_breakers=*/nullptr, /*num_breakers=*/0));
+
     if (temperature <= 0.01f) {
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
     } else {
         // min_p is the stage that matters for a small multilingual model on a
-        // low-resource language: the stray English and Chinese tokens that
-        // appear mid-Hebrew-sentence live in the low-probability tail, and
-        // 0.05 of the top token's probability is a wide enough door for them.
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90f, 1));
+        // low-resource language: stray tokens live in the low-probability
+        // tail, and 0.05 of the top token's probability is a wide door.
         llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.10f, 1));
         llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
         llama_sampler_chain_add(sampler, llama_sampler_init_dist((uint32_t) seed));

@@ -209,14 +209,21 @@ object LlamaBridge {
 
     fun tokenCount(handle: Long, text: String): Int = nativeTokenCount(handle, text)
 
+    /**
+     * [hebrewOnly] biases every token that is not Hebrew, a digit or
+     * punctuation out of reach, so the model cannot code-switch mid-sentence.
+     */
     fun generate(
         handle: Long,
         prompt: String,
         maxTokens: Int,
         temperature: Float,
         seed: Int = 42,
+        hebrewOnly: Boolean = true,
         listener: TokenListener? = null,
-    ): String = nativeGenerate(handle, prompt, maxTokens, temperature, seed, listener)
+    ): String = nativeGenerate(
+        handle, prompt, maxTokens, temperature, seed, hebrewOnly, listener,
+    )
 
     /** Safe to call before the library is loaded; then there is nothing to stop. */
     fun cancel() {
@@ -241,6 +248,7 @@ object LlamaBridge {
         maxTokens: Int,
         temperature: Float,
         seed: Int,
+        hebrewOnly: Boolean,
         listener: TokenListener?,
     ): String
     private external fun nativeCancel()

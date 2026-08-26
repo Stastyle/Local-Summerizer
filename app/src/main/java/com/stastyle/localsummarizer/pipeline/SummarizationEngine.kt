@@ -19,7 +19,10 @@ interface SummarizationEngine {
     ): String
 }
 
-class LlamaEngine(private val handle: Long) : SummarizationEngine {
+class LlamaEngine(
+    private val handle: Long,
+    private val hebrewOnly: Boolean = true,
+) : SummarizationEngine {
 
     override fun tokenCount(text: String): Int = LlamaBridge.tokenCount(handle, text)
 
@@ -33,6 +36,7 @@ class LlamaEngine(private val handle: Long) : SummarizationEngine {
         prompt = prompt,
         maxTokens = maxTokens,
         temperature = temperature,
+        hebrewOnly = hebrewOnly,
         listener = { piece -> onPiece(piece) },
     )
 }

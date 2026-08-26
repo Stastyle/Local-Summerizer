@@ -46,6 +46,7 @@ add_subdirectory(whisper.cpp)
 
 add_library(summarizer SHARED
     jni_utils.cpp
+    hebrew_filter.cpp
     backend_loader.cpp
     whisper_bridge.cpp
     llama_bridge.cpp

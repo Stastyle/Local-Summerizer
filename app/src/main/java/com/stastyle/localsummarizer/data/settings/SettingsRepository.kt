@@ -14,16 +14,18 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
 const val DEFAULT_MASTER_PROMPT: String =
-    "אתה עוזר מקצועי שמסכם ישיבות בעברית. קרא את תמליל הישיבה וכתוב סיכום מובנה בפורמט Markdown הכולל:\n" +
+    "שפת הפלט: עברית בלבד.\n\n" +
+        "אתה עוזר מקצועי שמסכם ישיבות בעברית. קרא את תמליל הישיבה וכתוב סיכום מובנה " +
+        "עם הכותרות הבאות, בדיוק בסדר הזה:\n" +
         "## תקציר מנהלים\n3–5 משפטים המסכמים את עיקרי הישיבה.\n" +
         "## נושאים שנדונו\nרשימת הנושאים המרכזיים ותמצית הדיון בכל אחד.\n" +
         "## החלטות\nכל ההחלטות שהתקבלו.\n" +
         "## משימות להמשך\nרשימת משימות, כולל אחראים ותאריכי יעד אם צוינו.\n" +
-        "## שאלות פתוחות\nנושאים שנשארו ללא הכרעה.\n" +
-        "כתוב אך ורק בעברית — אל תשתמש באנגלית או בשפה אחרת, גם לא במילה בודדת. " +
-        "כתוב בעברית ברורה ותמציתית. אל תמציא פרטים שאינם בתמליל. " +
-        "אם התמליל שגוי או לא ברור במקום כלשהו, כתוב זאת במפורש במקום לנחש. " +
-        "אם אין תוכן לסעיף מסוים, כתוב בו \"אין\" ואל תמציא."
+        "## שאלות פתוחות\nנושאים שנשארו ללא הכרעה.\n\n" +
+        "התמליל הופק בזיהוי דיבור אוטומטי ועלולות להיות בו מילים משובשות. " +
+        "הסתמך על ההקשר, אל תנחש שמות שאינך בטוח בהם, וציין במפורש כשמשהו לא ברור.\n" +
+        "אל תמציא פרטים שאינם בתמליל. אם אין תוכן לסעיף מסוים, כתוב בו \"אין\".\n\n" +
+        "כלל מחייב: כל תו בתשובה חייב להיות בעברית, בספרות או בסימני פיסוק."
 
 /**
  * Whisper conditions its decoder on this text. Even with no domain terms in
@@ -51,6 +53,8 @@ data class AppSettings(
     val transcriptionContext: Boolean = true,
     /** Glossary carried into every decode window. */
     val transcriptionPrompt: String = DEFAULT_TRANSCRIPTION_PROMPT,
+    /** Make non-Hebrew tokens unreachable during summarization. */
+    val hebrewOnlyOutput: Boolean = true,
     /** Optional GitHub token, only used to reach the private release. */
     val githubToken: String = "",
 ) {
@@ -74,6 +78,7 @@ class SettingsRepository(private val context: Context) {
         val beamSize = intPreferencesKey("beam_size")
         val transcriptionContext = booleanPreferencesKey("transcription_context")
         val transcriptionPrompt = stringPreferencesKey("transcription_prompt")
+        val hebrewOnlyOutput = booleanPreferencesKey("hebrew_only_output")
         val githubToken = stringPreferencesKey("github_token")
     }
 
@@ -93,6 +98,7 @@ class SettingsRepository(private val context: Context) {
             transcriptionContext = prefs[Keys.transcriptionContext] ?: true,
             transcriptionPrompt = prefs[Keys.transcriptionPrompt]
                 ?: DEFAULT_TRANSCRIPTION_PROMPT,
+            hebrewOnlyOutput = prefs[Keys.hebrewOnlyOutput] ?: true,
             githubToken = prefs[Keys.githubToken] ?: "",
         )
     }
@@ -147,6 +153,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setTranscriptionPrompt(prompt: String) {
         context.dataStore.edit { it[Keys.transcriptionPrompt] = prompt }
+    }
+
+    suspend fun setHebrewOnlyOutput(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.hebrewOnlyOutput] = enabled }
     }
 
     suspend fun setGithubToken(token: String) {
