@@ -122,10 +122,38 @@ jobs:
           name: local-summarizer-apk
           path: app/build/outputs/apk/release/*.apk
 
+      # The .so files in the APK are stripped, so a native crash backtrace —
+      # from the in-app diagnostics or from logcat — is bare addresses. These
+      # are the same libraries before AGP stripped them, and ndk-stack turns
+      # those addresses into function names against them. Keep them: without
+      # the copy from the exact build that crashed, a backtrace cannot be
+      # symbolized at all.
+      - name: Locate unstripped native libraries
+        id: symbols
+        run: |
+          set -euo pipefail
+          # AGP moved this path once already (the task name was inserted in 8.x),
+          # so search rather than hardcode.
+          find app/build/intermediates/merged_native_libs -name '*.so' -print \
+            | tee /tmp/unstripped.txt || true
+          echo "count=$(wc -l < /tmp/unstripped.txt)"
+
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-summarizer-symbols
+          path: app/build/intermediates/merged_native_libs/**/*.so
+          if-no-files-found: warn
+
       # Uploading into an existing release keeps the download URL valid even if
       # a run is cancelled midway; delete-then-recreate could leave the page 404.
+      # workflow_dispatch is included deliberately: a manual rebuild that left
+      # the release untouched would have the download page serve the previous
+      # build, with nothing on screen saying so.
       - name: Update rolling release
-        if: github.event_name == 'push' && steps.signing.outputs.available == 'true'
+        if: >-
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+          && steps.signing.outputs.available == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
