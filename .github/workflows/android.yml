@@ -99,7 +99,10 @@ jobs:
       # it into the APK, so fail the build rather than ship a silent fallback.
       - name: Verify packaged native libraries
         run: |
-          APK=app/build/outputs/apk/release/app-release.apk
+          set -euo pipefail
+          # An unsigned build is named app-release-unsigned.apk, so resolve the
+          # file rather than assuming which one the signing path produced.
+          APK=$(ls -1 app/build/outputs/apk/release/*.apk | head -1)
           echo "Native libraries in $APK:"
           unzip -l "$APK" | grep '\.so$' | awk '{print $4, $1}'
           for required in libsummarizer.so libggml-base.so libllama.so libwhisper.so libc++_shared.so; do
@@ -123,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: local-summarizer-apk
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/apk/release/*.apk
 
       # Uploading into an existing release keeps the download URL valid even if
       # a run is cancelled midway; delete-then-recreate could leave the page 404.
