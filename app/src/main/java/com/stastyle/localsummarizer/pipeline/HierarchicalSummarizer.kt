@@ -2,7 +2,6 @@ package com.stastyle.localsummarizer.pipeline
 
 import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.domain.PipelineState
-import com.stastyle.localsummarizer.nativebridge.LlamaBridge
 
 /**
  * Summarizes transcripts of any length. Short transcripts get a single pass
@@ -11,7 +10,7 @@ import com.stastyle.localsummarizer.nativebridge.LlamaBridge
  * and a final pass merges the partial summaries.
  */
 class HierarchicalSummarizer(
-    private val handle: Long,
+    private val engine: SummarizationEngine,
     private val settings: AppSettings,
     private val onState: (PipelineState) -> Unit,
     private val isCancelled: () -> Boolean,
@@ -24,7 +23,7 @@ class HierarchicalSummarizer(
         val maxTokens = settings.maxTokens
         val inputBudget = inputTokenBudget(settings.masterPrompt, maxTokens)
         val transcriptTokens =
-            LlamaBridge.tokenCount(handle, PromptBuilder.transcriptUserContent(transcript))
+            engine.tokenCount(PromptBuilder.transcriptUserContent(transcript))
 
         if (transcriptTokens <= inputBudget) {
             return generate(
@@ -37,7 +36,8 @@ class HierarchicalSummarizer(
         }
 
         // hierarchical path
-        val chunkBudget = inputTokenBudget(PromptBuilder.CHUNK_SYSTEM_PROMPT, CHUNK_SUMMARY_TOKENS)
+        val partialTokens = partialSummaryTokens()
+        val chunkBudget = inputTokenBudget(PromptBuilder.CHUNK_SYSTEM_PROMPT, partialTokens)
         val chunks = splitByTokenBudget(transcript, chunkBudget)
         val partialSummaries = ArrayList<String>(chunks.size)
         chunks.forEachIndexed { index, chunk ->
@@ -45,7 +45,7 @@ class HierarchicalSummarizer(
             val partial = generate(
                 systemPrompt = PromptBuilder.CHUNK_SYSTEM_PROMPT,
                 userContent = PromptBuilder.chunkUserContent(chunk, index, chunks.size),
-                maxTokens = CHUNK_SUMMARY_TOKENS,
+                maxTokens = partialTokens,
                 chunkIndex = index,
                 chunkCount = chunks.size + 1,
             )
@@ -53,12 +53,12 @@ class HierarchicalSummarizer(
         }
         if (isCancelled()) return ""
 
-        val merged = foldToFit(partialSummaries, inputTokenBudget(settings.masterPrompt, maxTokens))
+        val merged = foldToFit(partialSummaries, inputBudget, partialTokens)
         if (isCancelled()) return ""
 
         return generate(
             systemPrompt = settings.masterPrompt,
-            userContent = PromptBuilder.mergeUserContent(merged),
+            userContent = PromptBuilder.mergeUserContent(trimToFit(merged, inputBudget)),
             maxTokens = maxTokens,
             chunkIndex = chunks.size,
             chunkCount = chunks.size + 1,
@@ -66,37 +66,91 @@ class HierarchicalSummarizer(
     }
 
     /**
-     * A very long meeting can produce more partial summaries than fit in one
-     * merge prompt, so neighbouring partials are combined into intermediate
-     * summaries until the final merge fits the context.
+     * Intermediate summaries have to be small enough that several of them fit
+     * in one merge prompt, so their size follows the context rather than being
+     * a fixed number that overflows a small one.
      */
-    private fun foldToFit(partials: List<String>, budget: Int): List<String> {
+    private fun partialSummaryTokens(): Int =
+        (settings.contextSize / 8).coerceIn(MIN_PARTIAL_TOKENS, MAX_PARTIAL_TOKENS)
+
+    /**
+     * A very long meeting produces more partial summaries than fit in one
+     * merge prompt, so they are combined into intermediate summaries until the
+     * final merge fits. Groups are sized against the budget rather than folded
+     * blindly in pairs, because a pair of large partials can itself overflow
+     * the context.
+     */
+    private fun foldToFit(partials: List<String>, mergeBudget: Int, partialTokens: Int): List<String> {
         var current = partials
-        while (current.size > 1 &&
-            LlamaBridge.tokenCount(handle, PromptBuilder.mergeUserContent(current)) > budget
-        ) {
+        var rounds = 0
+        while (current.size > 1 && !fits(current, mergeBudget)) {
             if (isCancelled()) return current
-            val folded = ArrayList<String>((current.size + 1) / 2)
-            var index = 0
-            while (index < current.size) {
-                val pair = current.subList(index, minOf(index + 2, current.size))
-                folded += if (pair.size == 1) {
-                    pair[0]
+            if (++rounds > MAX_FOLD_ROUNDS) break
+
+            val foldBudget = inputTokenBudget(PromptBuilder.CHUNK_SYSTEM_PROMPT, partialTokens)
+            val groups = groupWithinBudget(current, foldBudget)
+            if (groups.size >= current.size) break // cannot combine any further
+
+            current = groups.map { group ->
+                if (isCancelled()) return current
+                if (group.size == 1) {
+                    group[0]
                 } else {
                     generate(
                         systemPrompt = PromptBuilder.CHUNK_SYSTEM_PROMPT,
-                        userContent = PromptBuilder.mergeUserContent(pair),
-                        maxTokens = CHUNK_SUMMARY_TOKENS,
+                        userContent = PromptBuilder.mergeUserContent(group),
+                        maxTokens = partialTokens,
                         chunkIndex = 0,
                         chunkCount = 1,
                     )
                 }
-                index += 2
             }
-            if (folded.size == current.size) break // no progress; avoid looping
-            current = folded
         }
         return current
+    }
+
+    private fun fits(partials: List<String>, budget: Int): Boolean =
+        engine.tokenCount(PromptBuilder.mergeUserContent(partials)) <= budget
+
+    /** Greedily packs consecutive partials into groups that fit [budget]. */
+    private fun groupWithinBudget(partials: List<String>, budget: Int): List<List<String>> {
+        val groups = ArrayList<List<String>>()
+        var group = ArrayList<String>()
+        for (partial in partials) {
+            if (group.isNotEmpty() && !fits(group + partial, budget)) {
+                groups += group
+                group = arrayListOf(partial)
+            } else {
+                group.add(partial)
+            }
+        }
+        if (group.isNotEmpty()) groups += group
+        return groups
+    }
+
+    /**
+     * Last resort when folding cannot shrink the merge any further: keep the
+     * partials that fit and truncate the next one, so a very long meeting
+     * still yields a summary instead of an error.
+     */
+    private fun trimToFit(partials: List<String>, budget: Int): List<String> {
+        if (partials.isEmpty() || fits(partials, budget)) return partials
+        val kept = ArrayList<String>()
+        for (partial in partials) {
+            if (fits(kept + partial, budget)) {
+                kept += partial
+            } else {
+                val remaining = budget - engine.tokenCount(PromptBuilder.mergeUserContent(kept))
+                if (remaining > MIN_TRUNCATED_TOKENS) {
+                    val charsPerToken = (partial.length.toDouble() /
+                        engine.tokenCount(partial).coerceAtLeast(1))
+                    val take = ((remaining - MIN_TRUNCATED_TOKENS) * charsPerToken).toInt()
+                    if (take > 0) kept += partial.take(take.coerceAtMost(partial.length))
+                }
+                break
+            }
+        }
+        return kept.ifEmpty { listOf(partials.first().take(budget)) }
     }
 
     private fun generate(
@@ -108,8 +162,7 @@ class HierarchicalSummarizer(
     ): String {
         val partial = StringBuilder()
         onState(PipelineState.Summarizing(chunkIndex, chunkCount, "", transcriptForUi))
-        val result = LlamaBridge.generate(
-            handle = handle,
+        val result = engine.generate(
             prompt = PromptBuilder.chatMl(systemPrompt, userContent),
             maxTokens = maxTokens,
             temperature = settings.temperature,
@@ -127,9 +180,7 @@ class HierarchicalSummarizer(
 
     /** Input tokens available for the transcript within the model context. */
     private fun inputTokenBudget(systemPrompt: String, outputTokens: Int): Int {
-        val overhead = LlamaBridge.tokenCount(
-            handle, PromptBuilder.chatMl(systemPrompt, ""),
-        )
+        val overhead = engine.tokenCount(PromptBuilder.chatMl(systemPrompt, ""))
         val budget = settings.contextSize - overhead - outputTokens - SAFETY_MARGIN_TOKENS
         return budget.coerceAtLeast(MIN_INPUT_BUDGET)
     }
@@ -140,7 +191,7 @@ class HierarchicalSummarizer(
      * pass with the real tokenizer.
      */
     private fun splitByTokenBudget(text: String, budget: Int): List<String> {
-        val totalTokens = LlamaBridge.tokenCount(handle, text).coerceAtLeast(1)
+        val totalTokens = engine.tokenCount(text).coerceAtLeast(1)
         val charsPerToken = text.length.toDouble() / totalTokens
         val chunkCharBudget = (budget * charsPerToken * 0.85).toInt().coerceAtLeast(500)
 
@@ -176,7 +227,7 @@ class HierarchicalSummarizer(
     }
 
     private fun fitChunk(chunk: String, budget: Int): List<String> {
-        if (LlamaBridge.tokenCount(handle, chunk) <= budget) return listOf(chunk)
+        if (engine.tokenCount(chunk) <= budget) return listOf(chunk)
         if (chunk.length < 200) return listOf(chunk.take(budget * 2))
         val middle = chunk.length / 2
         val splitAt = chunk.indexOf('\n', middle).takeIf { it in 1 until chunk.length - 1 }
@@ -187,8 +238,11 @@ class HierarchicalSummarizer(
     }
 
     private companion object {
-        const val CHUNK_SUMMARY_TOKENS = 700
+        const val MIN_PARTIAL_TOKENS = 200
+        const val MAX_PARTIAL_TOKENS = 700
         const val SAFETY_MARGIN_TOKENS = 64
         const val MIN_INPUT_BUDGET = 256
+        const val MIN_TRUNCATED_TOKENS = 32
+        const val MAX_FOLD_ROUNDS = 8
     }
 }

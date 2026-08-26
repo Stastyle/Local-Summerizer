@@ -191,7 +191,7 @@ class MeetingPipeline(
             if (cancelled()) return ""
 
             val summarizer = HierarchicalSummarizer(
-                handle = handle,
+                engine = LlamaEngine(handle),
                 settings = settings,
                 onState = manager::update,
                 isCancelled = ::cancelled,
