@@ -57,11 +57,19 @@ jobs:
         id: source
         run: |
           set -euo pipefail
+          # The large-v3 hash is what this workflow measured on 2026-08-26;
+          # it also matches the value an unrelated project pins. A mismatch
+          # means the upstream file changed, not that the download broke.
           case "${{ inputs.model }}" in
-            large-v3-turbo) REPO=ivrit-ai/whisper-large-v3-turbo-ggml ;;
-            large-v3)       REPO=ivrit-ai/whisper-large-v3-ggml ;;
+            large-v3-turbo)
+              REPO=ivrit-ai/whisper-large-v3-turbo-ggml
+              EXPECT="" ;;
+            large-v3)
+              REPO=ivrit-ai/whisper-large-v3-ggml
+              EXPECT=09e66ec67b2e00c6933afab6684cbf78fe023e8ad153c1848f62000e4335a07f ;;
             *) echo "::error::unknown model"; exit 1 ;;
           esac
+          echo "expect=$EXPECT" >> "$GITHUB_OUTPUT"
           URL="https://huggingface.co/$REPO/resolve/main/ggml-model.bin"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "Source: $URL"
@@ -75,13 +83,21 @@ jobs:
           curl -sSL --retry 3 --retry-delay 5 \
             -o /tmp/source.bin "${{ steps.source.outputs.url }}"
           ls -l /tmp/source.bin
-          echo "source sha256: $(sha256sum /tmp/source.bin | cut -d' ' -f1)"
+          HASH=$(sha256sum /tmp/source.bin | cut -d' ' -f1)
+          echo "source sha256: $HASH"
           # A truncated download or an HTML error page must not be quantized
           # and published as a model.
           test "$(stat -c%s /tmp/source.bin)" -gt 500000000 \
             || { echo "::error::source model is implausibly small"; exit 1; }
-          head -c 4 /tmp/source.bin | grep -q 'ggml' \
-            || { echo "::error::source does not start with the ggml magic"; exit 1; }
+          # GGML_FILE_MAGIC is 0x67676d6c read as a little-endian uint32, so
+          # the bytes on disk are "lmgg", not "ggml".
+          MAGIC=$(head -c 4 /tmp/source.bin | xxd -p)
+          test "$MAGIC" = "6c6d6767" \
+            || { echo "::error::not a ggml file (magic $MAGIC)"; exit 1; }
+          EXPECT='${{ steps.source.outputs.expect }}'
+          if [ -n "$EXPECT" ] && [ "$HASH" != "$EXPECT" ]; then
+            echo "::warning::upstream file changed: expected $EXPECT, got $HASH"
+          fi
 
       - name: Quantize
         id: quantize
