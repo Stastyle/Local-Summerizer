@@ -22,18 +22,36 @@ Nothing leaves the device — the app requests no network permission at all.
 
 האפליקציה לא כוללת מודלים — צריך להוריד אותם פעם אחת לטלפון (למשל לתיקיית ההורדות) ולבחור אותם במסך ההגדרות.
 
-| ייעוד | מודל מומלץ | גודל | הערות |
-|---|---|---|---|
-| תמלול בעברית | [ivrit-ai/whisper-large-v3-turbo-ggml](https://huggingface.co/ivrit-ai/whisper-large-v3-turbo-ggml) | ~1.6GB | הדיוק הטוב ביותר בעברית — מומלץ |
-| תמלול (חלופה) | [ggml-large-v3-turbo](https://huggingface.co/ggerganov/whisper.cpp/tree/main) | ~1.6GB | Whisper הרשמי, עברית סבירה |
-| סיכום — איכות מרבית | [Qwen2.5-7B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF) ‏(Q4_K_M) | ~4.7GB | האיכות הטובה ביותר; דורש 12GB RAM. מתאים ל-S26 Ultra |
-| סיכום — מהיר | [Qwen2.5-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) ‏(Q4_K_M) | ~2GB | מהיר בהרבה, עברית עדיין טובה |
+### תמלול — קובץ **GGML ‏`.bin`**
 
-מודל התמלול חייב להיות בפורמט **GGML ‏(`.bin`)**, ומודל הסיכום בפורמט **GGUF**.
-כל קובץ GGUF של מודל שיחה יעבוד — לא רק Qwen.
+- **Whisper הרשמי (מאומת):** https://huggingface.co/ggerganov/whisper.cpp/tree/main
+  הקובץ: `ggml-large-v3-turbo.bin` ‏(~1.6GB). עובד בעברית ברמה סבירה.
+  אם רוצים משהו קטן ומהיר לבדיקה ראשונה: `ggml-base.bin` ‏(~150MB) — איכות נמוכה, אבל
+  מוודא שהצינור עובד תוך דקה במקום עשרים.
+- **עברית מיטבית:** לפרויקט [ivrit.ai](https://huggingface.co/ivrit-ai) יש מודלים
+  מכווננים לעברית שמדויקים משמעותית מ-Whisper הרשמי. **לא הצלחתי לאמת מכאן** אם קיימת
+  גרסת GGML מוכנה שלהם (HuggingFace חסום מסביבת הבנייה) — חפשו בעמוד שלהם מודל שהקובץ
+  שלו הוא `.bin` בפורמט ggml. אם יש רק גרסת transformers/CTranslate2, היא **לא** תעבוד
+  כאן בלי המרה.
 
-**המלצה למכשיר עם 12GB RAM:** התחילו עם Qwen2.5-**7B** Q4_K_M לאיכות המרבית.
-אם הסיכום איטי מדי לטעמכם, החליפו ל-3B — ההבדל במהירות גדול, ההבדל באיכות קטן יחסית.
+### סיכום — קובץ **GGUF יחיד**
+
+חשוב: האפליקציה טוענת את המודל ישירות מהמיקום שבחרתם, ולכן **קובץ GGUF מפוצל לא ייטען**.
+אם שם הקובץ נראה כמו `...-00001-of-00002.gguf` — זה מפוצל, בחרו מקור אחר.
+
+- **מומלץ להתחיל:** Qwen2.5-**3B**-Instruct בקוונטיזציה Q4_K_M ‏(~2GB) — קובץ יחיד,
+  מהיר משמעותית, ועברית טובה לסיכומים:
+  https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF
+- **איכות מרבית:** Qwen2.5-**7B**-Instruct Q4_K_M ‏(~4.7GB). בריפו הרשמי של Qwen
+  הקוונטיזציות הגדולות מפוצלות לכמה קבצים, ולכן עדיף מקור שמפרסם קובץ יחיד:
+  https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF
+  ‏(הקובץ `Qwen2.5-7B-Instruct-Q4_K_M.gguf`). דורש 12GB RAM.
+
+כל מודל שיחה בפורמט GGUF יעבוד — לא רק Qwen — כל עוד הוא קובץ יחיד.
+
+**הערת אימות:** HuggingFace חסום מסביבת הבנייה של הפרויקט, ולכן שמות הקבצים המדויקים
+לא נבדקו אחד-אחד. הקישורים הם לעמודי המודלים; בחרו שם את הקובץ לפי הכללים למעלה
+(‏`.bin` ל-ggml, קובץ GGUF יחיד לסיכום).
 
 ## שימוש (Usage)
 
