@@ -137,15 +137,27 @@ object WhisperBridge {
         return nativeInit(modelPath)
     }
 
-    /** [pcmPath] holds raw little-endian float32 mono samples at 16 kHz. */
+    /**
+     * [pcmPath] holds raw little-endian float32 mono samples at 16 kHz.
+     *
+     * [beamSize] above 1 selects beam search over greedy decoding.
+     * [useContext] conditions each window on the text before it.
+     * [initialPrompt] is a glossary carried into every window.
+     */
     fun transcribeFile(
         handle: Long,
         pcmPath: String,
         language: String,
         threads: Int,
         translate: Boolean = false,
+        beamSize: Int = 5,
+        useContext: Boolean = true,
+        initialPrompt: String = "",
         listener: Listener? = null,
-    ): String = nativeTranscribeFile(handle, pcmPath, language, threads, translate, listener)
+    ): String = nativeTranscribeFile(
+        handle, pcmPath, language, threads, translate, beamSize, useContext,
+        initialPrompt, listener,
+    )
 
     /** Safe to call before the library is loaded; then there is nothing to stop. */
     fun cancel() {
@@ -169,6 +181,9 @@ object WhisperBridge {
         language: String,
         threads: Int,
         translate: Boolean,
+        beamSize: Int,
+        useContext: Boolean,
+        initialPrompt: String,
         listener: Listener?,
     ): String
     private external fun nativeCancel()

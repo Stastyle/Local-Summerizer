@@ -288,6 +288,18 @@ class SettingsViewModel(private val app: LocalSummarizerApp) : AndroidViewModel(
         viewModelScope.launch { repository.setMasterPrompt(prompt) }
     }
 
+    fun setTranscriptionPrompt(prompt: String) {
+        viewModelScope.launch { repository.setTranscriptionPrompt(prompt) }
+    }
+
+    fun setBeamSize(size: Int) {
+        viewModelScope.launch { repository.setBeamSize(size) }
+    }
+
+    fun setTranscriptionContext(enabled: Boolean) {
+        viewModelScope.launch { repository.setTranscriptionContext(enabled) }
+    }
+
     fun setLanguage(language: String) {
         viewModelScope.launch { repository.setLanguage(language) }
     }

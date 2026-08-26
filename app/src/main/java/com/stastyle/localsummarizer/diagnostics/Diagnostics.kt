@@ -5,6 +5,8 @@ import android.os.Build
 import android.system.Os
 import android.system.OsConstants
 import com.stastyle.localsummarizer.BuildConfig
+import com.stastyle.localsummarizer.appContainer
+import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.nativebridge.NativeLib
 import java.io.File
 import java.text.SimpleDateFormat
@@ -79,7 +81,16 @@ object RunLog {
  */
 object Diagnostics {
 
-    fun report(context: Context): String = buildString {
+    suspend fun report(context: Context): String {
+        // Which models and which decode settings produced a bad result is the
+        // first thing anyone needs to know, and the report is the only place
+        // the user can read it back.
+        val settings = runCatching { context.appContainer().settingsRepository.current() }
+            .getOrNull()
+        return build(context, settings)
+    }
+
+    private fun build(context: Context, settings: AppSettings?): String = buildString {
         appendLine("Local Summarizer diagnostics")
         appendLine("build:    ${BuildConfig.GIT_SHA.take(12).ifBlank { "unknown" }} " +
             "(${BuildConfig.VERSION_NAME}, ${if (BuildConfig.DEBUG) "debug" else "release"})")
@@ -88,6 +99,20 @@ object Diagnostics {
         appendLine("abis:     ${Build.SUPPORTED_ABIS.joinToString()}")
         appendLine("page size: ${pageSize()}")
         appendLine("cpu cores: ${Runtime.getRuntime().availableProcessors()}")
+        appendLine()
+
+        if (settings == null) {
+            appendLine("settings: unreadable")
+        } else {
+            appendLine("transcription model: ${settings.whisperModelName.ifBlank { "not set" }}")
+            appendLine("summarization model: ${settings.llamaModelName.ifBlank { "not set" }}")
+            appendLine("language: ${settings.language}   threads: ${settings.threads}")
+            appendLine("beam size: ${settings.beamSize}" +
+                "   carry context: ${settings.transcriptionContext}")
+            appendLine("glossary: ${settings.transcriptionPrompt.take(120)}")
+            appendLine("llm ctx: ${settings.contextSize}   max tokens: ${settings.maxTokens}" +
+                "   temperature: ${settings.temperature}")
+        }
         appendLine()
 
         val libDir = File(context.applicationInfo.nativeLibraryDir)

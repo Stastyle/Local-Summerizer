@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -48,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.data.models.ModelKind
 import com.stastyle.localsummarizer.data.settings.DEFAULT_MASTER_PROMPT
+import com.stastyle.localsummarizer.data.settings.DEFAULT_TRANSCRIPTION_PROMPT
 import com.stastyle.localsummarizer.ui.AppViewModelProvider
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -233,6 +235,93 @@ fun SettingsScreen(
                         ) {
                             Text(stringResource(R.string.settings_reset_prompt))
                         }
+                    }
+                }
+            }
+
+            // Transcription accuracy section
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.settings_transcription_section),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(R.string.settings_glossary_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                    var glossaryDraft by remember(settings.transcriptionPrompt) {
+                        mutableStateOf(settings.transcriptionPrompt)
+                    }
+                    OutlinedTextField(
+                        value = glossaryDraft,
+                        onValueChange = { glossaryDraft = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 100.dp),
+                        label = { Text(stringResource(R.string.settings_glossary)) },
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { viewModel.setTranscriptionPrompt(glossaryDraft) },
+                            enabled = glossaryDraft != settings.transcriptionPrompt,
+                        ) {
+                            Text(stringResource(R.string.settings_save))
+                        }
+                        TextButton(
+                            onClick = {
+                                glossaryDraft = DEFAULT_TRANSCRIPTION_PROMPT
+                                viewModel.setTranscriptionPrompt(DEFAULT_TRANSCRIPTION_PROMPT)
+                            },
+                        ) {
+                            Text(stringResource(R.string.settings_reset_prompt))
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.settings_beam_search),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                stringResource(R.string.settings_beam_search_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                        Switch(
+                            checked = settings.beamSize > 1,
+                            onCheckedChange = { viewModel.setBeamSize(if (it) 5 else 1) },
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.settings_carry_context),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                stringResource(R.string.settings_carry_context_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                        Switch(
+                            checked = settings.transcriptionContext,
+                            onCheckedChange = viewModel::setTranscriptionContext,
+                        )
                     }
                 }
             }

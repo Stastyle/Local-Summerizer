@@ -186,6 +186,9 @@ class MeetingPipeline(
                 language = settings.language,
                 threads = effectiveThreads(),
                 translate = false,
+                beamSize = settings.beamSize,
+                useContext = settings.transcriptionContext,
+                initialPrompt = settings.transcriptionPrompt,
                 listener = listener,
             )
         } finally {

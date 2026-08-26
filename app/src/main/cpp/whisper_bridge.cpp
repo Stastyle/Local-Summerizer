@@ -103,7 +103,8 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeInit(
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFile(
         JNIEnv * env, jobject /*thiz*/, jlong handle, jstring pcm_path,
-        jstring language, jint n_threads, jboolean translate, jobject listener) {
+        jstring language, jint n_threads, jboolean translate, jint beam_size,
+        jboolean use_context, jstring initial_prompt, jobject listener) {
     auto * ctx = (whisper_context *) (intptr_t) handle;
     if (ctx == nullptr) {
         throw_runtime_exception(env, "whisper context is not initialized");
@@ -150,9 +151,20 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
         }
     }
 
+    // Both outlive whisper_full, which keeps the pointers rather than copying.
     const std::string lang = jstring_to_utf8(env, language);
+    const std::string prompt = jstring_to_utf8(env, initial_prompt);
 
-    whisper_full_params wparams = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+    // Beam search explores several hypotheses per window instead of committing
+    // to the highest-probability token each step. It costs roughly beam_size
+    // times the decode work and is the largest single accuracy gain available
+    // for a language the model is weak at.
+    const bool beam = beam_size > 1;
+    whisper_full_params wparams = whisper_full_default_params(
+            beam ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY);
+    if (beam) {
+        wparams.beam_search.beam_size = beam_size;
+    }
     wparams.print_realtime   = false;
     wparams.print_progress   = false;
     wparams.print_timestamps = false;
@@ -160,7 +172,18 @@ Java_com_stastyle_localsummarizer_nativebridge_WhisperBridge_nativeTranscribeFil
     wparams.translate        = translate == JNI_TRUE;
     wparams.language         = lang.c_str(); // "auto" enables auto-detection
     wparams.n_threads        = n_threads;
-    wparams.no_context       = true;
+    // Conditioning each 30s window on the previous text keeps names and jargon
+    // consistent across a meeting. It is also what makes whisper loop when it
+    // goes wrong, which is why it is a setting rather than a constant.
+    wparams.no_context       = use_context != JNI_TRUE;
+
+    if (!prompt.empty()) {
+        // A glossary of the terms this recording actually uses. carry_ means
+        // every window sees it, not only the first — otherwise it stops
+        // mattering a minute into a long meeting.
+        wparams.initial_prompt       = prompt.c_str();
+        wparams.carry_initial_prompt = true;
+    }
 
     wparams.progress_callback           = progress_callback;
     wparams.progress_callback_user_data = &cb;

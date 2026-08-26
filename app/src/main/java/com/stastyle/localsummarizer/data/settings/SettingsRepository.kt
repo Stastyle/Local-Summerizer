@@ -2,6 +2,7 @@ package com.stastyle.localsummarizer.data.settings
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -19,7 +20,19 @@ const val DEFAULT_MASTER_PROMPT: String =
         "## החלטות\nכל ההחלטות שהתקבלו.\n" +
         "## משימות להמשך\nרשימת משימות, כולל אחראים ותאריכי יעד אם צוינו.\n" +
         "## שאלות פתוחות\nנושאים שנשארו ללא הכרעה.\n" +
-        "כתוב בעברית ברורה ותמציתית. אל תמציא פרטים שאינם בתמליל."
+        "כתוב אך ורק בעברית — אל תשתמש באנגלית או בשפה אחרת, גם לא במילה בודדת. " +
+        "כתוב בעברית ברורה ותמציתית. אל תמציא פרטים שאינם בתמליל. " +
+        "אם התמליל שגוי או לא ברור במקום כלשהו, כתוב זאת במפורש במקום לנחש. " +
+        "אם אין תוכן לסעיף מסוים, כתוב בו \"אין\" ואל תמציא."
+
+/**
+ * Whisper conditions its decoder on this text. Even with no domain terms in
+ * it, a Hebrew sentence with full punctuation tells the model what language
+ * and what writing style to produce — which matters most exactly where the
+ * model is weakest. Users append their own recurring names and jargon.
+ */
+const val DEFAULT_TRANSCRIPTION_PROMPT: String =
+    "תמליל ישיבה בעברית. להלן דברי המשתתפים, בעברית תקנית ועם פיסוק מלא."
 
 data class AppSettings(
     val whisperModelUri: String = "",
@@ -31,7 +44,13 @@ data class AppSettings(
     val threads: Int = 0,
     val contextSize: Int = 8192,
     val maxTokens: Int = 1500,
-    val temperature: Float = 0.3f,
+    val temperature: Float = 0.2f,
+    /** Above 1 selects beam search; 1 keeps the cheaper greedy decoding. */
+    val beamSize: Int = 5,
+    /** Condition each 30s window on the text before it. */
+    val transcriptionContext: Boolean = true,
+    /** Glossary carried into every decode window. */
+    val transcriptionPrompt: String = DEFAULT_TRANSCRIPTION_PROMPT,
     /** Optional GitHub token, only used to reach the private release. */
     val githubToken: String = "",
 ) {
@@ -52,6 +71,9 @@ class SettingsRepository(private val context: Context) {
         val contextSize = intPreferencesKey("context_size")
         val maxTokens = intPreferencesKey("max_tokens")
         val temperature = floatPreferencesKey("temperature")
+        val beamSize = intPreferencesKey("beam_size")
+        val transcriptionContext = booleanPreferencesKey("transcription_context")
+        val transcriptionPrompt = stringPreferencesKey("transcription_prompt")
         val githubToken = stringPreferencesKey("github_token")
     }
 
@@ -66,7 +88,11 @@ class SettingsRepository(private val context: Context) {
             threads = prefs[Keys.threads] ?: 0,
             contextSize = prefs[Keys.contextSize] ?: 8192,
             maxTokens = prefs[Keys.maxTokens] ?: 1500,
-            temperature = prefs[Keys.temperature] ?: 0.3f,
+            temperature = prefs[Keys.temperature] ?: 0.2f,
+            beamSize = prefs[Keys.beamSize] ?: 5,
+            transcriptionContext = prefs[Keys.transcriptionContext] ?: true,
+            transcriptionPrompt = prefs[Keys.transcriptionPrompt]
+                ?: DEFAULT_TRANSCRIPTION_PROMPT,
             githubToken = prefs[Keys.githubToken] ?: "",
         )
     }
@@ -109,6 +135,18 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setTemperature(temperature: Float) {
         context.dataStore.edit { it[Keys.temperature] = temperature }
+    }
+
+    suspend fun setBeamSize(size: Int) {
+        context.dataStore.edit { it[Keys.beamSize] = size }
+    }
+
+    suspend fun setTranscriptionContext(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.transcriptionContext] = enabled }
+    }
+
+    suspend fun setTranscriptionPrompt(prompt: String) {
+        context.dataStore.edit { it[Keys.transcriptionPrompt] = prompt }
     }
 
     suspend fun setGithubToken(token: String) {

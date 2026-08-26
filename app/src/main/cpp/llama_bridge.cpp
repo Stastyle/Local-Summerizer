@@ -183,12 +183,21 @@ Java_com_stastyle_localsummarizer_nativebridge_LlamaBridge_nativeGenerate(
     }
 
     llama_sampler * sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    // A light repetition penalty on both paths: summaries of a repetitive
+    // meeting are where a small model starts looping a sentence.
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(
+            llama_vocab_n_tokens(vocab), /*penalty_last_n=*/256,
+            /*penalty_repeat=*/1.05f, /*penalty_freq=*/0.0f, /*penalty_present=*/0.0f));
     if (temperature <= 0.01f) {
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
     } else {
+        // min_p is the stage that matters for a small multilingual model on a
+        // low-resource language: the stray English and Chinese tokens that
+        // appear mid-Hebrew-sentence live in the low-probability tail, and
+        // 0.05 of the top token's probability is a wide enough door for them.
         llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.95f, 1));
-        llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.05f, 1));
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90f, 1));
+        llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.10f, 1));
         llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
         llama_sampler_chain_add(sampler, llama_sampler_init_dist((uint32_t) seed));
     }

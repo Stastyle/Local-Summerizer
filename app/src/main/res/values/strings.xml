@@ -113,6 +113,14 @@
     <string name="app_update_token">GitHub token (optional)</string>
     <string name="app_update_token_hint">Only used to reach the private release. A fine-grained read-only token for this repository is enough.</string>
     <string name="app_update_unknown_build">unknown</string>
+    <!-- Transcription accuracy -->
+    <string name="settings_transcription_section">Transcription accuracy</string>
+    <string name="settings_glossary">Glossary / context</string>
+    <string name="settings_glossary_hint">Whisper is conditioned on this text. Adding the names, ranks, unit names and terms that recur in your recordings measurably reduces mishearings.</string>
+    <string name="settings_beam_search">Beam search</string>
+    <string name="settings_beam_search_hint">Weighs several possibilities per segment instead of committing to the first. Noticeably more accurate, roughly two to three times slower.</string>
+    <string name="settings_carry_context">Carry context between segments</string>
+    <string name="settings_carry_context_hint">Keeps names and terms consistent through the meeting. Turn it off if the transcript starts repeating a sentence over and over.</string>
     <!-- Diagnostics -->
     <string name="diagnostics_section">Diagnostics</string>
     <string name="diagnostics_hint">A report on the engine and this device. Useful when something fails — copy it and send it along with the description of the problem. It contains no audio, transcript or summary.</string>
