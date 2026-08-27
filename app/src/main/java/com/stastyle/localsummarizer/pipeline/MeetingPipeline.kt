@@ -2,6 +2,8 @@ package com.stastyle.localsummarizer.pipeline
 
 import android.content.Context
 import android.net.Uri
+import android.os.Process
+import android.util.Log
 import com.stastyle.localsummarizer.R
 import com.stastyle.localsummarizer.appContainer
 import com.stastyle.localsummarizer.audio.AudioDecoder
@@ -137,7 +139,10 @@ class MeetingPipeline(
             val audio = manager.audioSeconds
             val elapsed = manager.elapsedMs() / 1000.0
             if (audio <= 0.0 || elapsed <= 0.0) return ""
-            return " (%.2fx realtime, %.0fs audio in %.0fs)".format(audio / elapsed, audio, elapsed)
+            // The cpuset at the END of the run: if Android moved the app to
+            // the little cluster partway through, this is where it shows.
+            return " (%.2fx realtime, %.0fs audio in %.0fs, %s)"
+                .format(audio / elapsed, audio, elapsed, CpuTopology.describe())
         }
 
     private fun finish(state: PipelineState): PipelineState {
@@ -158,6 +163,12 @@ class MeetingPipeline(
         PipelineState.Failed(context.getString(messageRes))
 
     private fun transcribe(pcmFile: File): String {
+        // Threads in a backgrounded app land in the background scheduling
+        // group, which caps their CPU share on top of any cpuset limit. This
+        // is inherited by the ggml workers this thread goes on to spawn.
+        runCatching {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT)
+        }.onFailure { Log.w(TAG, "could not raise the inference thread priority", it) }
         manager.update(PipelineState.LoadingWhisper)
         RunLog.enter(context, "loading whisper model ${settings.whisperModelName}")
         val resolved = ModelFileResolver.resolve(
@@ -192,7 +203,9 @@ class MeetingPipeline(
             }
 
             manager.update(PipelineState.Transcribing(0, ""))
-            RunLog.enter(context, "transcribing")
+                // Recorded per run: Android moves the app between cpusets, and
+            // the set during a backgrounded run is not the set at startup.
+            RunLog.enter(context, "transcribing — ${CpuTopology.describe()}")
             return WhisperBridge.transcribeFile(
                 handle = handle,
                 pcmPath = pcmFile.absolutePath,
@@ -245,8 +258,9 @@ class MeetingPipeline(
 
     private fun effectiveThreads(): Int {
         if (settings.threads > 0) return settings.threads
-        return CpuTopology.inferenceThreads
+        return CpuTopology.inferenceThreads()
     }
 }
 
+private const val TAG = "MeetingPipeline"
 private const val SAMPLE_RATE = 16000.0

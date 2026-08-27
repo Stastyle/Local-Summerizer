@@ -110,9 +110,13 @@ object Diagnostics {
             val threads = if (settings.threads > 0) {
                 "${settings.threads} (set)"
             } else {
-                "${CpuTopology.inferenceThreads} (auto, fast cores)"
+                "${CpuTopology.inferenceThreads()} (auto, from allowed cores)"
             }
             appendLine("language: ${settings.language}   threads: $threads")
+            // Which cores the process may use right now. A backgrounded app is
+            // commonly confined to the little cluster, and that — not the
+            // model — can dominate how long a run takes.
+            appendLine(CpuTopology.describe())
             appendLine("beam size: ${settings.beamSize}" +
                 "   carry context: ${settings.transcriptionContext}")
             appendLine("glossary: ${settings.transcriptionPrompt.take(120)}")
