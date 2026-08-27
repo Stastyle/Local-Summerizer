@@ -6,7 +6,17 @@ package com.stastyle.localsummarizer.pipeline
  */
 object PromptBuilder {
 
-    fun chatMl(systemPrompt: String, userContent: String): String = buildString {
+    /**
+     * [assistantPrefix] is put after the assistant turn opens, so generation
+     * continues it rather than deciding how to begin. Starting the model
+     * inside the required shape is worth more than asking it to produce that
+     * shape — it is prompt, not output, so callers prepend it to the result.
+     */
+    fun chatMl(
+        systemPrompt: String,
+        userContent: String,
+        assistantPrefix: String = "",
+    ): String = buildString {
         append("<|im_start|>system\n")
         append(systemPrompt)
         append("<|im_end|>\n")
@@ -14,7 +24,11 @@ object PromptBuilder {
         append(userContent)
         append("<|im_end|>\n")
         append("<|im_start|>assistant\n")
+        append(assistantPrefix)
     }
+
+    /** First heading of the master-prompt skeleton, used as the prefill. */
+    const val SUMMARY_PREFIX: String = "## תקציר מנהלים\n"
 
     private const val LANGUAGE_REMINDER = "\n\nענה בעברית בלבד."
 

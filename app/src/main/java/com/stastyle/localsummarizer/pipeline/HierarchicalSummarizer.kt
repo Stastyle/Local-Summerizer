@@ -32,6 +32,7 @@ class HierarchicalSummarizer(
                 maxTokens = maxTokens,
                 chunkIndex = 0,
                 chunkCount = 1,
+                assistantPrefix = PromptBuilder.SUMMARY_PREFIX,
             )
         }
 
@@ -62,6 +63,7 @@ class HierarchicalSummarizer(
             maxTokens = maxTokens,
             chunkIndex = chunks.size,
             chunkCount = chunks.size + 1,
+            assistantPrefix = PromptBuilder.SUMMARY_PREFIX,
         )
     }
 
@@ -159,23 +161,27 @@ class HierarchicalSummarizer(
         maxTokens: Int,
         chunkIndex: Int,
         chunkCount: Int,
+        assistantPrefix: String = "",
     ): String {
         val partial = StringBuilder()
-        onState(PipelineState.Summarizing(chunkIndex, chunkCount, "", transcriptForUi))
+        onState(
+            PipelineState.Summarizing(chunkIndex, chunkCount, assistantPrefix, transcriptForUi),
+        )
         val result = engine.generate(
-            prompt = PromptBuilder.chatMl(systemPrompt, userContent),
+            prompt = PromptBuilder.chatMl(systemPrompt, userContent, assistantPrefix),
             maxTokens = maxTokens,
             temperature = settings.temperature,
         ) { piece ->
             partial.append(piece)
             onState(
                 PipelineState.Summarizing(
-                    chunkIndex, chunkCount, partial.toString(), transcriptForUi,
+                    chunkIndex, chunkCount, assistantPrefix + partial, transcriptForUi,
                 ),
             )
             !isCancelled()
         }
-        return result.trim()
+        // The prefill was prompt, so it is not in the model's output.
+        return (assistantPrefix + result).trim()
     }
 
     /** Input tokens available for the transcript within the model context. */

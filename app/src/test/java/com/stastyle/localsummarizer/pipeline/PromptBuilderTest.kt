@@ -38,6 +38,25 @@ class PromptBuilderTest {
     }
 
     @Test
+    fun `the prefill starts the summary inside the required skeleton`() {
+        val prompt = PromptBuilder.chatMl("sys", "user", PromptBuilder.SUMMARY_PREFIX)
+        assertTrue(prompt.endsWith("<|im_start|>assistant\n" + PromptBuilder.SUMMARY_PREFIX))
+        // It is the first heading of the master prompt, so the model continues
+        // the skeleton rather than choosing how to open.
+        assertTrue(DEFAULT_MASTER_PROMPT.contains(PromptBuilder.SUMMARY_PREFIX.trim()))
+        // Without a prefill the assistant turn is still left open as before.
+        assertTrue(PromptBuilder.chatMl("sys", "user").endsWith("<|im_start|>assistant\n"))
+    }
+
+    @Test
+    fun `the master prompt does not offer a way to skip a section`() {
+        // "write none" was being taken as the default: a real decision in the
+        // transcript came back as an empty Decisions section.
+        assertTrue(DEFAULT_MASTER_PROMPT.contains("השמט"))
+        assertTrue(!DEFAULT_MASTER_PROMPT.contains("כתוב בו \"אין\""))
+    }
+
+    @Test
     fun `both system prompts open and close with the language rule`() {
         // Position matters more than wording: first line sets the frame,
         // last line is what the model saw most recently.

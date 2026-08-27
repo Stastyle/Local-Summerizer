@@ -1,6 +1,7 @@
 #include <jni.h>
 
 #include <cstddef>
+#include <cstring>
 #include <mutex>
 #include <string>
 
@@ -30,6 +31,19 @@ constexpr size_t kLogBufferMax = 24 * 1024;
 std::mutex  g_log_mutex;
 std::string g_log_buffer;
 
+// llama emits one line per tensor when a model loads — for a 7B that is
+// several hundred `create_tensor:` lines and several hundred `repack:` lines,
+// which is more than the whole buffer. They say nothing a diagnostics report
+// needs, and they push out the lines that do: the whisper timings, the CPU
+// variant that was chosen, and any error.
+bool is_per_tensor_noise(const char * text) {
+    static const char * const prefixes[] = { "create_tensor:", "repack:", ".repack:" };
+    for (const char * prefix : prefixes) {
+        if (strncmp(text, prefix, strlen(prefix)) == 0) return true;
+    }
+    return false;
+}
+
 void collect_log(ggml_log_level level, const char * text, void * /*user_data*/) {
     if (text == nullptr) return;
 #ifdef __ANDROID__
@@ -40,6 +54,7 @@ void collect_log(ggml_log_level level, const char * text, void * /*user_data*/) 
 #else
     (void) level;
 #endif
+    if (is_per_tensor_noise(text)) return;
     std::lock_guard<std::mutex> lock(g_log_mutex);
     g_log_buffer += text;
     if (g_log_buffer.size() > kLogBufferMax) {
