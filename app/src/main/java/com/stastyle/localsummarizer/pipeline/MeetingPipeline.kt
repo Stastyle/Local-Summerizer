@@ -10,6 +10,7 @@ import com.stastyle.localsummarizer.audio.AudioDecoder
 import com.stastyle.localsummarizer.data.history.MeetingRecord
 import com.stastyle.localsummarizer.data.settings.AppSettings
 import com.stastyle.localsummarizer.diagnostics.RunLog
+import com.stastyle.localsummarizer.diagnostics.RunTelemetry
 import com.stastyle.localsummarizer.domain.PipelineState
 import com.stastyle.localsummarizer.nativebridge.LlamaBridge
 import com.stastyle.localsummarizer.nativebridge.WhisperBridge
@@ -45,6 +46,8 @@ class MeetingPipeline(
             // 1. decode audio to a 16kHz mono PCM scratch file (a long meeting
             //    is hundreds of MB — far past the Java heap limit)
             manager.update(PipelineState.Decoding)
+            RunTelemetry.reset()
+            RunTelemetry.sample(context)
             RunLog.enter(context, "decoding audio")
             AudioDecoder.decodeToFile(
                 context = context,
@@ -133,6 +136,10 @@ class MeetingPipeline(
         }
     }
 
+    /** What the run measured about the machine, or empty. */
+    private val telemetrySuffix: String
+        get() = RunTelemetry.summary().let { if (it.isEmpty()) "" else " [$it]" }
+
     /** " (0.05x realtime)" once both numbers are known, else empty. */
     private val speedSuffix: String
         get() {
@@ -149,11 +156,11 @@ class MeetingPipeline(
         RunLog.finished(
             context,
             when (state) {
-                is PipelineState.Done -> "completed$speedSuffix"
+                is PipelineState.Done -> "completed"
                 is PipelineState.Failed -> "failed: ${state.message}"
                 PipelineState.Cancelled -> "cancelled"
                 else -> state.javaClass.simpleName
-            },
+            } + speedSuffix + telemetrySuffix,
         )
         manager.update(state)
         return state
@@ -185,12 +192,14 @@ class MeetingPipeline(
             val partial = StringBuilder()
             val listener = object : WhisperBridge.Listener {
                 override fun onProgress(percent: Int) {
+                    RunTelemetry.sample(context)
                     manager.update(
                         PipelineState.Transcribing(percent.coerceIn(0, 100), partial.toString()),
                     )
                 }
 
                 override fun onSegment(text: String) {
+                    RunTelemetry.sample(context)
                     val trimmed = text.trim()
                     if (trimmed.isNotEmpty()) {
                         if (partial.isNotEmpty()) partial.append('\n')
@@ -205,6 +214,7 @@ class MeetingPipeline(
             manager.update(PipelineState.Transcribing(0, ""))
                 // Recorded per run: Android moves the app between cpusets, and
             // the set during a backgrounded run is not the set at startup.
+            RunTelemetry.sample(context)
             RunLog.enter(context, "transcribing — ${CpuTopology.describe()}")
             return WhisperBridge.transcribeFile(
                 handle = handle,
@@ -242,12 +252,14 @@ class MeetingPipeline(
             }
             if (cancelled()) return ""
 
+            RunTelemetry.sample(context)
             RunLog.enter(context, "summarizing")
             val summarizer = HierarchicalSummarizer(
                 engine = LlamaEngine(handle, hebrewOnly = settings.hebrewOnlyOutput),
                 settings = settings,
                 onState = manager::update,
                 isCancelled = ::cancelled,
+                onTick = { RunTelemetry.sample(context) },
             )
             return summarizer.summarize(transcript)
         } finally {

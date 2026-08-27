@@ -14,6 +14,8 @@ class HierarchicalSummarizer(
     private val settings: AppSettings,
     private val onState: (PipelineState) -> Unit,
     private val isCancelled: () -> Boolean,
+    /** Called as generation progresses, for run telemetry. */
+    private val onTick: () -> Unit = {},
 ) {
 
     private var transcriptForUi: String = ""
@@ -172,6 +174,7 @@ class HierarchicalSummarizer(
             maxTokens = maxTokens,
             temperature = settings.temperature,
         ) { piece ->
+            onTick()
             partial.append(piece)
             onState(
                 PipelineState.Summarizing(

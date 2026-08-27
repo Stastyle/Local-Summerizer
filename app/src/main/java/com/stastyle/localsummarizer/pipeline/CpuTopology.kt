@@ -14,10 +14,12 @@ import java.io.File
  * threads than there are cores available makes it strictly worse — the threads
  * take turns, and the barrier waits for the last of them.
  *
- * And the set of available cores is not fixed. Android moves an app between
- * cpusets as it goes to and from the foreground; a backgrounded app is
- * commonly confined to the little cluster. That is why nothing here is cached:
- * the answer at process start is not the answer during a run.
+ * And the set of available cores is not necessarily fixed: Android can move an
+ * app between cpusets as it goes to and from the foreground. Measured on a
+ * Galaxy S26 Ultra the set stayed 0-7 — that phone has no little cluster at
+ * all, just 2 cores at 4742 MHz and 6 at 3628 MHz — so this is a guard, not a
+ * known problem. Nothing is cached regardless: reading it costs one small file
+ * and the answer at process start need not hold during a run.
  */
 object CpuTopology {
 
@@ -49,16 +51,18 @@ object CpuTopology {
     /**
      * Thread count for a run starting now.
      *
-     * Never larger than the number of cores actually available: oversubscribing
-     * a restricted cpuset is how six threads came to be slower than two.
+     * Never larger than the number of cores actually available. Asking ggml
+     * for more threads than there are cores is always a loss — they take
+     * turns and the barrier waits for the last — even though it has not been
+     * shown to be what made a particular run slow.
      */
     fun inferenceThreads(): Int {
         val allowed = allowedCpus().ifEmpty {
             (0 until Runtime.getRuntime().availableProcessors()).toList()
         }
         if (allowed.size <= 4) {
-            // Already a small set — almost certainly the little cluster. Use it
-            // all; there is nothing left to hold back for.
+            // Already a small set. Use all of it; there is nothing left to
+            // hold back for.
             Log.i(TAG, "confined to ${allowed.size} core(s) -> ${allowed.size} thread(s)")
             return allowed.size.coerceAtLeast(1)
         }
@@ -101,7 +105,7 @@ object CpuTopology {
     }.getOrNull()
 
     /** "0,1,2,3,6" -> "0-3,6", which is how the kernel would have written it. */
-    private fun compact(cpus: List<Int>): String {
+    fun compact(cpus: List<Int>): String {
         val sorted = cpus.sorted()
         val parts = mutableListOf<String>()
         var start = sorted.first()

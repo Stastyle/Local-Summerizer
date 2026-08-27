@@ -2,6 +2,7 @@ package com.stastyle.localsummarizer.diagnostics
 
 import android.content.Context
 import android.os.Build
+import android.os.PowerManager
 import android.system.Os
 import android.system.OsConstants
 import com.stastyle.localsummarizer.BuildConfig
@@ -116,7 +117,7 @@ object Diagnostics {
             // Which cores the process may use right now. A backgrounded app is
             // commonly confined to the little cluster, and that — not the
             // model — can dominate how long a run takes.
-            appendLine(CpuTopology.describe())
+            appendLine(CpuTopology.describe() + thermalNow(context))
             appendLine("beam size: ${settings.beamSize}" +
                 "   carry context: ${settings.transcriptionContext}")
             appendLine("glossary: ${settings.transcriptionPrompt.take(120)}")
@@ -172,6 +173,19 @@ object Diagnostics {
             appendLine("engine log (most recent ${engineLog.length} chars):")
             appendLine(engineLog.trimEnd())
         }
+    }
+
+    /**
+     * Read here as well as during a run: the report is taken after the fact,
+     * when the phone has cooled, so this is the baseline the run's own peak
+     * should be compared against.
+     */
+    private fun thermalNow(context: Context): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return ""
+        val status = runCatching {
+            context.getSystemService(PowerManager::class.java)?.currentThermalStatus
+        }.getOrNull() ?: return ""
+        return "  (thermal now: $status)"
     }
 
     private fun pageSize(): String = runCatching {
